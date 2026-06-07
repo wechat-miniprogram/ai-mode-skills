@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Env & secrets
+.env
+.env.local
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+.codebuddy
+
+# 评测产物（体积大，不进版本库）
+eval_output/
+
+# skills 打包产物
+dist/
+
+# 本地凭据（含密钥，不得入库）
+credentials.json
+mp-eval/credentials.json
