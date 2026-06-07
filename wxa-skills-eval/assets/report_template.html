@@ -1,0 +1,2183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent 评测报告</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue","Microsoft YaHei",sans-serif;background:#f5f5f5;color:#333;line-height:1.6}
+
+/* ── 顶部导航栏 ── */
+.header{background:#fff;border-bottom:1px solid #e5e5e5;padding:0 24px;height:56px;display:flex;align-items:center;position:fixed;top:0;left:0;right:0;z-index:100}
+.header-logo{display:flex;align-items:center;gap:10px}
+.header-logo svg{width:28px;height:28px}
+.header-logo span{font-size:16px;font-weight:600;color:#333}
+
+/* ── 主容器：三栏 ── */
+.main{display:flex;margin-top:56px;height:calc(100vh - 56px)}
+
+/* ── 左侧栏（Case 列表）── */
+.sidebar{width:260px;background:#fff;border-right:1px solid #e5e5e5;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden}
+.sidebar-header{padding:16px 16px 12px;border-bottom:1px solid #f0f0f0;flex-shrink:0}
+.sidebar-header h2{font-size:13px;color:#999;font-weight:500;margin-bottom:8px}
+.sidebar-header .skill-name{font-size:15px;font-weight:600;color:#333}
+.case-list{flex:1;overflow-y:auto;padding:8px 12px}
+.case-item{padding:10px 12px;border-radius:8px;border:1px solid #e5e5e5;background:#fff;cursor:pointer;transition:all .15s;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.case-item:hover{border-color:#07C160;background:#f6ffed}
+.case-item.active{border-color:#07C160;background:#f0f9f4;box-shadow:0 0 0 2px rgba(7,193,96,.1)}
+.case-item .left{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+.case-item .dot{width:6px;height:6px;border-radius:50%;background:#07C160;flex-shrink:0}
+.case-item.fail .dot{background:#fa8c16}
+.case-item.incomplete .dot{background:#bfbfbf}
+.case-item.incomplete .label{color:#8c8c8c}
+.case-item.incomplete .rate{color:#8c8c8c}
+.case-item .label{font-size:13px;font-weight:500;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.case-item .right{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.case-item .rate{font-size:12px;font-weight:600;color:#07C160;white-space:nowrap}
+.case-item.fail .rate{color:#fa8c16}
+.tag-expand{display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;color:#9254de;background:#f9f0ff;border:1px solid #d3adf7;margin-left:6px;white-space:nowrap;vertical-align:middle}
+.case-item .attr-tags{display:flex;gap:3px}
+.attr-tag{display:inline-block;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;white-space:nowrap}
+.attr-tag.L1{background:#fff1f0;color:#ff7875}
+.attr-tag.L2{background:#f0f5ff;color:#2f54eb}
+.attr-tag.L3{background:#fff7e6;color:#fa8c16}
+.attr-tag.L4{background:#f5f5f5;color:#999}
+
+/* ── 右侧内容区 ── */
+.content{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+/* ── 任务总览视图（占满右侧） ── */
+.task-overview{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;background:#fff}
+.task-overview-top{flex-shrink:0;padding:24px 28px 0;overflow:visible}
+.task-overview-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:16px;overflow:visible}
+.task-overview-header .left-part{display:flex;align-items:flex-start;gap:20px;flex-shrink:0;overflow:visible}
+.task-ring{position:relative;width:100px;height:100px;flex-shrink:0}
+.task-ring svg{transform:rotate(-90deg)}
+.task-ring-text{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center}
+.task-ring-val{font-size:24px;font-weight:700;color:#07C160;line-height:1}
+.task-ring-label{font-size:11px;color:#666;margin-top:2px}
+.task-overview-header .right-meta{text-align:right;font-size:13px;color:#999;line-height:1.9}
+.task-overview-header .right-meta .model-name{color:#722ed1;font-weight:600}
+
+/* 任务总览 Tab（固定在 header 下方，不参与滚动） */
+.task-tab-nav{display:flex;gap:0;padding:0 28px;flex-shrink:0;background:#fff;z-index:20;border-bottom:2px solid #e5e5e5}
+.task-tab-btn{padding:12px 20px;font-size:14px;font-weight:500;color:#666;background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .2s}
+.task-tab-btn:hover{color:#07C160}
+.task-tab-btn.active{color:#07C160;border-bottom-color:#07C160}
+.task-tab-panes-wrap{flex:1;min-height:0;overflow-y:auto;padding:20px 28px}
+.task-tab-pane{display:block;padding-top:8px;margin-bottom:32px}
+.task-tab-pane-title{font-size:16px;font-weight:600;color:#333;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid #f0f0f0}
+.task-tab-pane-title.with-action{display:flex;align-items:center;justify-content:space-between;gap:12px}
+
+/* ── 缺陷导出按钮 / 下拉菜单 ── */
+.export-defects{position:relative;display:inline-block}
+.export-defects__btn{display:inline-flex;align-items:center;gap:4px;padding:5px 12px;font-size:12px;line-height:1.4;border:none;border-radius:4px;background:#07C160;color:#fff;cursor:pointer;transition:background .15s}
+.export-defects__btn:hover{background:#05a050}
+.export-defects__btn::after{content:'▾';font-size:10px;margin-left:2px}
+.export-defects__menu{position:absolute;top:calc(100% + 4px);right:0;min-width:140px;background:#fff;border:1px solid #e5e5e5;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.08);padding:4px 0;display:none;z-index:50}
+.export-defects.is-open .export-defects__menu{display:block}
+.export-defects__item{display:block;width:100%;padding:7px 14px;font-size:12px;color:#333;background:none;border:none;text-align:left;cursor:pointer}
+.export-defects__item:hover{background:#f5f5f5;color:#07C160}
+
+/* ── Case 详情视图（占满右侧，和任务总览互斥） ── */
+.case-detail{flex:1;overflow:hidden;padding:0;display:none;flex-direction:column}
+.case-detail.active{display:flex}
+.case-detail-header{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid #e5e5e5;flex-shrink:0;background:#fff}
+.case-detail-header h2{font-size:16px;font-weight:600;color:#333}
+.case-detail-header .intent{font-size:12px;color:#666;max-width:60%;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.case-detail-header .back-btn{font-size:12px;color:#07C160;cursor:pointer;padding:4px 10px;border:1px solid #07C160;border-radius:4px;background:#fff;transition:all .15s}
+.case-detail-header .back-btn:hover{background:#07C160;color:#fff}
+
+/* ── 两列布局：评测结果 + 轨迹（默认 3:7，可拖动调整） ── */
+.case-detail-body{display:flex;flex:1;overflow:hidden;position:relative}
+.case-col-eval{width:30%;min-width:200px;max-width:70%;flex-shrink:0;overflow-y:auto;padding:20px;border-right:none;background:#fff}
+.case-col-traj{flex:1;overflow-y:auto;padding:20px 24px;background:#fafafa}
+.split-handle{width:6px;cursor:col-resize;background:#e5e5e5;flex-shrink:0;position:relative;transition:background .2s}
+.split-handle:hover,.split-handle.dragging{background:#07C160}
+.split-handle::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:2px;height:36px;background:#bbb;border-radius:2px;transition:background .2s}
+.split-handle:hover::after,.split-handle.dragging::after{background:#fff}
+
+/* ── 评测归因列表 ── */
+.attr-list-section{margin-bottom:16px}
+.attr-list-section h4{font-size:14px;font-weight:600;color:#333;margin-bottom:12px}
+.attr-list-table{width:100%;border-collapse:collapse}
+.attr-list-table th,.attr-list-table td{padding:10px 12px;text-align:left;border-bottom:1px solid #f0f0f0;font-size:13px}
+.attr-list-table th{background:#fafafa;color:#666;font-weight:500}
+.attr-list-table td{color:#333}
+.attr-list-table .case-link{color:#07C160;cursor:pointer;text-decoration:underline}
+.attr-list-table .case-link:hover{color:#05a050}
+
+/* ── 任务级摘要统计（v1 风格卡片） ── */
+.task-stats-col{display:flex;flex-direction:column;gap:10px;min-width:160px}
+.pf-box{border-radius:10px;padding:10px 16px;display:flex;justify-content:space-between;align-items:center}
+.pf-box.neutral{background:#f5f5f5;border:1px solid #d9d9d9}
+.pf-box.neutral span:first-child{color:#666;font-size:13px;font-weight:500}
+.pf-box.neutral span:last-child{color:#333;font-size:14px;font-weight:600}
+.pf-box.pass{background:#f6ffed;border:1px solid #b7eb8f}
+.pf-box.pass span:first-child{color:#52c41a;font-size:13px;font-weight:500}
+.pf-box.pass span:last-child{color:#52c41a;font-size:14px;font-weight:600}
+.pf-box.fail{background:#fff2f0;border:1px solid #ffccc7}
+.pf-box.fail span:first-child{color:#f5222d;font-size:13px;font-weight:500}
+.pf-box.fail span:last-child{color:#f5222d;font-size:14px;font-weight:600}
+
+/* ── 名词解释 tooltip（挂在文字上，不显示 i 图标） ── */
+.pf-label{display:inline-flex;align-items:center;cursor:help;text-decoration:underline dotted rgba(0,0,0,.18);text-underline-offset:3px}
+/* 全局 fixed tooltip，避免被任何祖先的 overflow:hidden 裁切 */
+#globalTip{position:fixed;z-index:99999;max-width:320px;min-width:200px;padding:8px 10px;background:#262626;color:#fff;font-size:12px;font-weight:400;line-height:1.6;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.18);white-space:normal;text-align:left;pointer-events:none;opacity:0;transform:translateY(2px);transition:opacity .12s ease;display:none}
+#globalTip.show{display:block;opacity:1;transform:translateY(0)}
+#globalTip::after{content:"";position:absolute;border:6px solid transparent}
+#globalTip.tip-top::after{top:100%;left:var(--arrow-x,16px);border-top-color:#262626}
+#globalTip.tip-bottom::after{bottom:100%;left:var(--arrow-x,16px);border-bottom-color:#262626}
+
+/* ── 左侧栏：小程序 + skills 信息 ── */
+.miniapp-info{margin:8px 0 4px;padding:10px 12px;background:#f7f8fa;border:1px solid #ececec;border-radius:8px}
+.miniapp-info .mi-row{display:flex;align-items:center;gap:6px;font-size:12px;color:#666;margin-bottom:6px}
+.miniapp-info .mi-row .mi-label{color:#999;flex-shrink:0}
+.miniapp-info .mi-row .mi-val{color:#333;font-weight:600;word-break:break-all}
+.miniapp-info .mi-row .mi-val.mi-mono{font-family:"SF Mono",Monaco,"Courier New",monospace;font-weight:500;font-size:11.5px;color:#444}
+.miniapp-info .mi-skills{margin-top:6px;padding-top:6px;border-top:1px dashed #e5e5e5}
+.miniapp-info .mi-skills-title{font-size:11px;color:#999;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
+.miniapp-info .mi-skills-title:hover{color:#666}
+.miniapp-info .mi-skills-title .mi-toggle{font-size:10px;color:#bbb;transition:transform .2s}
+.miniapp-info .mi-skills-title .mi-toggle.collapsed{transform:rotate(-90deg)}
+.miniapp-info .mi-skill-list{display:flex;flex-direction:column;gap:4px;overflow:hidden;transition:max-height .25s ease}
+.miniapp-info .mi-skill-list.collapsed{max-height:0!important;margin-top:0}
+.miniapp-info .mi-skill-item{display:flex;align-items:center;gap:6px;font-size:12px;color:#333;padding:3px 8px;background:#fff;border:1px solid #eee;border-radius:4px}
+.miniapp-info .mi-skill-item .mi-skill-dot{width:6px;height:6px;border-radius:50%;background:#07C160;flex-shrink:0}
+.miniapp-info .mi-skill-item.current{background:#e8f7ee;border-color:#b7eb8f}
+.miniapp-info .mi-skill-item .mi-skill-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── 归因摘要（轨迹上方） ── */
+.attr-summary-bar{margin-bottom:16px;padding:12px 14px;background:#fffbf0;border:1px solid #ffe8b8;border-radius:8px}
+.attr-summary-bar h4{font-size:13px;font-weight:600;color:#333;margin-bottom:8px}
+.attr-summary-list{display:flex;flex-direction:column;gap:6px}
+.attr-summary-item{display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.5}
+.attr-summary-item .attr-badge{display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;flex-shrink:0}
+.attr-summary-item .attr-badge.L1{background:#fff1f0;color:#ff7875}
+.attr-summary-item .attr-badge.L2{background:#f0f5ff;color:#2f54eb}
+.attr-summary-item .attr-badge.L3{background:#fff7e6;color:#fa8c16}
+.attr-summary-item .attr-badge.L4{background:#f5f5f5;color:#999}
+.attr-summary-item .attr-desc{color:#333}
+
+/* ── 归因分析（内联在轨迹中） ── */
+.attr-section-title{font-size:15px;font-weight:600;color:#333;margin-bottom:12px;padding-left:10px;border-left:3px solid #07C160}
+.attr-card{background:#f9f9f9;border-radius:8px;padding:14px;margin-bottom:10px;display:flex;gap:10px;align-items:flex-start}
+.attr-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;flex-shrink:0;margin-top:2px}
+.attr-badge.L1{background:#fff1f0;color:#ff7875}
+.attr-badge.L2{background:#f0f5ff;color:#2f54eb}
+.attr-badge.L3{background:#fff7e6;color:#fa8c16}
+.attr-badge.L4{background:#f5f5f5;color:#999}
+/* ── 产品视角：问题类型徽章（5类） ── */
+.cat-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;white-space:nowrap}
+.cat-badge.cat-biz{background:#fff1f0;color:#cf1322;border:1px solid #ffa39e}
+.cat-badge.cat-flow{background:#fff7e6;color:#d46b08;border:1px solid #ffd591}
+.cat-badge.cat-style{background:#f6ffed;color:#389e0d;border:1px solid #b7eb8f}
+.cat-badge.cat-model{background:#f0f5ff;color:#1d39c4;border:1px solid #adc6ff}
+.cat-badge.cat-data{background:#f9f0ff;color:#531dab;border:1px solid #d3adf7}
+.cat-badge.cat-unknown{background:#fafafa;color:#999;border:1px solid #e5e5e5}
+/* ── 缺陷视角切换（产品 / 开发） ── */
+.defect-view-toggle{display:inline-flex;border:1px solid #e5e5e5;border-radius:6px;overflow:hidden;font-size:12px;margin-right:8px;vertical-align:middle}
+.defect-view-toggle button{padding:5px 12px;background:#fff;color:#666;border:none;cursor:pointer;line-height:1.4}
+.defect-view-toggle button + button{border-left:1px solid #e5e5e5}
+.defect-view-toggle button.active{background:#07C160;color:#fff}
+.defect-view-toggle button:not(.active):hover{color:#07C160}
+/* 产品视角表的列宽与多行文本展示 */
+.attr-list-table.pm-view td{vertical-align:top;line-height:1.55;white-space:normal;word-break:break-word}
+.attr-list-table.pm-view .col-scenario{max-width:180px;color:#333}
+.attr-list-table.pm-view .col-cat{width:88px}
+.attr-body{flex:1}
+.attr-body .desc{font-size:14px;font-weight:500;color:#333;margin-bottom:6px}
+.attr-body .reason{font-size:13px;color:#666;margin-bottom:4px}
+.attr-body .suggestion{font-size:13px;color:#07C160}
+.attr-skipped{text-align:center;padding:40px;color:#52c41a;font-size:15px}
+
+/* ── 内联问题标注 ── */
+.inline-issue{margin-top:10px;border:1px solid #ffd6d6;border-radius:8px;background:#fff8f8;padding:10px 12px}
+.inline-issue-header{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.inline-issue-header .issue-label{font-size:11px;font-weight:600;color:#ff7875;background:#fff1f0;padding:2px 6px;border-radius:3px}
+.inline-issue-header .issue-check{font-size:12px;color:#333;font-weight:500}
+.inline-issue-reason{font-size:12px;color:#666;margin-bottom:4px}
+.inline-issue-attr{margin-top:6px;padding-top:6px;border-top:1px dashed #ffe0e0}
+.inline-issue-attr .attr-line{display:flex;align-items:flex-start;gap:6px;font-size:12px}
+.inline-issue-attr .attr-line .attr-badge{font-size:10px;padding:1px 5px}
+.inline-issue-attr .attr-line .attr-text{color:#666;line-height:1.5}
+
+/* ── L4 模型推理标记 ── */
+.l3-tag{display:inline-block;margin-top:8px;padding:2px 8px;font-size:11px;font-weight:600;color:#999;background:#f5f5f5;border:1px solid #e8e8e8;border-radius:4px}
+
+/* ── 对话轨迹 ── */
+.conv-list{display:flex;flex-direction:column;gap:14px}
+.conv-item{background:#f9f9f9;border-radius:8px;padding:16px;border-left:4px solid #e5e5e5;transition:box-shadow .3s,background .3s}
+.conv-item.traj-highlight{box-shadow:0 0 0 3px #bae0ff;background:#f0f7ff}
+.conv-item.role-user{border-left:none;border-right:4px solid #07C160;display:flex;flex-direction:row-reverse;align-items:flex-start;gap:12px;padding:14px 16px;margin-left:20%;text-align:right;background:#d5efe5;color:#000}
+.conv-item.role-assistant{border-left-color:#07C160}
+.conv-item.role-assistant.role-partial{border-left-color:#fa8c16;background:#fff7e6}
+.conv-item.role-tool{border-left-color:#722ed1}
+.conv-avatar{width:36px;height:36px;border-radius:50%;background:#d9d9d9;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.conv-avatar svg{width:20px;height:20px;fill:#fff}
+.conv-body{flex:1;min-width:0}
+.conv-role{font-size:12px;font-weight:600;margin-bottom:6px;text-transform:uppercase}
+.conv-role.user{color:#2b8a3e}
+.conv-role.assistant{color:#07C160}
+.conv-role.tool{color:#722ed1}
+.conv-text{font-size:13px;color:#333;line-height:1.7;white-space:pre-wrap;word-break:break-word}
+.conv-text code{background:#e8e8e8;padding:1px 4px;border-radius:3px;font-size:12px}
+.agent-link{color:#1677ff;text-decoration:underline;cursor:pointer;position:relative;display:inline}
+.agent-link:hover{color:#0958d9}
+.agent-link-tooltip{display:none;position:absolute;bottom:calc(100% + 6px);left:0;background:#1f1f1f;color:#d4d4d4;padding:8px 12px;border-radius:6px;font-size:11px;line-height:1.4;white-space:pre-wrap;word-break:break-all;max-width:400px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.3);pointer-events:none}
+.agent-link:hover .agent-link-tooltip{display:block}
+.conv-tool-call{background:#fff;border:1px solid #e5e5e5;border-radius:6px;padding:10px;margin-top:6px;font-family:"SF Mono",Monaco,"Courier New",monospace;font-size:12px;white-space:pre-wrap;word-break:break-word;color:#555}
+.conv-tool-box{background:#faf5ff;border:1px solid #e8d8f8;border-radius:8px;padding:12px 14px;margin-top:8px}
+.conv-tool-box.tool-error{background:#fff5f5;border-color:#ffa39e}
+.conv-tool-box-header{font-size:13px;color:#722ed1;margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.conv-tool-error-badge{display:inline-block;background:#FA9D3B;color:#fff;font-size:11px;padding:1px 6px;border-radius:3px;margin-left:6px;vertical-align:middle}
+.conv-tool-success-badge{display:inline-block;background:#999;color:#fff;font-size:11px;padding:1px 6px;border-radius:3px;margin-left:6px;vertical-align:middle}
+.conv-call-ok-badge{display:inline-block;background:#52c41a;color:#fff;font-size:11px;padding:1px 6px;border-radius:3px;margin-left:6px;vertical-align:middle}
+.conv-call-fail-badge{display:inline-block;background:#ff4d4f;color:#fff;font-size:11px;padding:1px 6px;border-radius:3px;margin-left:6px;vertical-align:middle;cursor:help}
+.conv-tool-box-header strong{color:#333}
+.conv-tool-box-header .conv-tool-time{margin-left:auto;font-size:11px;color:#999;font-family:"SF Mono",Monaco,"Courier New",monospace;font-weight:normal}
+.conv-tool-section{margin-top:6px;border:1px solid #f0e6ff;border-radius:6px;overflow:hidden}
+.conv-tool-section>summary{cursor:pointer;padding:6px 12px;font-size:12px;color:#722ed1;background:#f9f0ff;user-select:none;list-style:none}
+.conv-tool-section>summary::-webkit-details-marker{display:none}
+.conv-tool-section>summary::before{content:'▶';display:inline-block;margin-right:6px;font-size:10px;transition:transform .15s}
+.conv-tool-section[open]>summary::before{transform:rotate(90deg)}
+.conv-tool-section>summary:hover{background:#f0e6ff}
+.conv-tool-pre{margin:0;padding:12px;font-family:"SF Mono",Monaco,"Courier New",monospace;font-size:11px;line-height:1.5;white-space:pre-wrap;word-break:break-word;background:#fff;color:#333;max-height:400px;overflow:auto}
+.tool-full-output{margin-top:8px;border:1px solid #e5e5e5;border-radius:6px;overflow:hidden}
+.tool-full-output summary{cursor:pointer;padding:6px 12px;font-size:12px;color:#722ed1;background:#faf5ff;user-select:none}
+.tool-full-output summary:hover{background:#f0e6ff}
+.tool-raw{margin:0;padding:12px;font-family:"SF Mono",Monaco,"Courier New",monospace;font-size:11px;line-height:1.5;white-space:pre-wrap;word-break:break-word;background:#fff;color:#333;max-height:500px;overflow:auto}
+/* tool_card 渲染产物：快照 + 元素树（DevTools chat 的 tool_card 事件） */
+.conv-snapshot{max-width:320px;height:auto;display:block;margin-top:8px;border:1px solid #ddd;border-radius:4px;background:#fff}
+.conv-snapshot-fallback{display:inline-block;margin-top:8px;padding:16px 20px;border:1px dashed #ccc;border-radius:4px;color:#999;font-size:12px;background:#fafafa}
+.conv-etree{margin-top:6px;border:1px solid #eee;border-radius:4px;background:#fcfcfd}
+.conv-etree summary{cursor:pointer;color:#666;padding:6px 10px;font-size:12px;user-select:none}
+.conv-etree summary:hover{color:#333}
+.conv-etree pre{margin:0;padding:8px 10px;border-top:1px solid #eee;background:#f7f7f8;max-height:240px;overflow:auto;font-size:12px;font-family:"SF Mono",Monaco,"Courier New",monospace;white-space:pre-wrap;word-break:break-word;color:#333}
+
+/* ── 文档质量 ── */
+.review-pass{text-align:center;padding:30px;color:#52c41a;font-size:14px}
+.review-summary-box{background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:16px 18px;margin-bottom:20px}
+.review-summary-box .review-title{font-size:14px;font-weight:600;color:#333;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.review-summary-box .review-text{font-size:13px;color:#555;line-height:1.8}
+.review-summary-box .review-summary-bullets{margin:0;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+.review-summary-box .review-summary-bullets li{position:relative;padding:8px 12px 8px 28px;font-size:13px;color:#444;line-height:1.7;background:#fff;border:1px solid #ececec;border-radius:6px}
+.review-summary-box .review-summary-bullets li::before{content:"";position:absolute;left:12px;top:14px;width:6px;height:6px;border-radius:50%;background:#fa8c16}
+.review-issues-list{display:flex;flex-direction:column;gap:12px}
+.review-issue{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:16px 18px;transition:box-shadow .2s}
+.review-issue:hover{box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.review-issue .issue-header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.review-issue .issue-tag{display:inline-block;background:#fff7e6;border:1px solid #ffe7ba;color:#d46b08;font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px}
+.review-issue .issue-api{font-size:12px;color:#999;font-family:"SF Mono",Monaco,monospace}
+.review-issue .issue-desc{font-size:13px;color:#333;line-height:1.7;margin-bottom:8px}
+.review-issue .issue-suggestion{font-size:13px;color:#07C160;line-height:1.6;padding:8px 12px;background:#f6ffed;border-radius:6px;border-left:3px solid #52c41a}
+
+/* ── 评测明细 ── */
+.detail-table{width:100%;border-collapse:collapse}
+.detail-table th,.detail-table td{padding:10px 12px;text-align:left;border-bottom:1px solid #f0f0f0;font-size:13px}
+.detail-table th{background:#fafafa;color:#666;font-weight:500}
+.detail-table td{color:#333}
+.score-tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600}
+.score-tag.full{background:#f6ffed;color:#52c41a}
+.score-tag.half{background:#fff7e6;color:#fa8c16}
+.score-tag.zero{background:#fff1f0;color:#f5222d}
+
+/* ── 性能指标 ── */
+.metrics-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px}
+.metric-card{background:#fafbfc;border:1px solid #eef0f2;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:4px}
+.metric-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.metric-label{font-size:11px;color:#999}
+.metric-value{font-size:18px;font-weight:700;color:#333;line-height:1.2}
+.metric-value .unit{font-size:11px;color:#999;font-weight:500;margin-left:2px}
+.metric-sub{font-size:11px;color:#666}
+.metric-card.accent-blue .metric-value{color:#1890ff}
+.metric-card.accent-purple .metric-value{color:#722ed1}
+.metric-card.accent-orange .metric-value{color:#fa8c16}
+.metric-card.accent-green .metric-value{color:#07C160}
+
+/* ── 性能明细表 ── */
+.perf-section{margin-bottom:16px}
+.perf-section:last-child{margin-bottom:0}
+.perf-section h3{font-size:13px;font-weight:600;color:#333;margin-bottom:8px;padding-left:10px;border-left:3px solid #07C160}
+.perf-table{width:100%;border-collapse:collapse}
+.perf-table th,.perf-table td{padding:8px 10px;text-align:left;border-bottom:1px solid #f0f0f0;font-size:12px}
+.perf-table th{background:#fafafa;color:#666;font-weight:500}
+.perf-table td{color:#333}
+.perf-table th.num,.perf-table td.num{text-align:right;font-variant-numeric:tabular-nums}
+.perf-bar{display:inline-block;height:5px;background:#07C160;border-radius:3px;vertical-align:middle;margin-left:6px}
+
+/* ── 空状态 ── */
+.empty{text-align:center;padding:40px;color:#999;font-size:14px}
+
+/* ── 响应式 ── */
+@media(max-width:900px){.sidebar{width:200px}.case-col-eval{width:45%;min-width:300px}}
+@media(max-width:768px){.sidebar{display:none}.content{padding:12px}.case-detail-body{flex-direction:column}.case-col-eval{width:100%;min-width:auto;border-right:none;border-bottom:1px solid #e5e5e5;max-height:40vh}.case-col-traj{flex:1}}
+
+/* ── 多 skill 切换 ── */
+.skill-switcher{padding:12px 16px;border-bottom:1px solid #f0f0f0}
+.skill-switcher select{width:100%;padding:6px 8px;font-size:12px;border:1px solid #e5e5e5;border-radius:6px;background:#fff;color:#333}
+
+/* ── 工具定义 Modal ── */
+.conv-tool-def-btn{display:inline-flex;align-items:center;gap:3px;background:#f0e6ff;color:#722ed1;border:1px solid #d3adf7;border-radius:4px;padding:1px 6px;font-size:11px;cursor:pointer;line-height:1.4;transition:background .15s}
+.conv-tool-def-btn:hover{background:#e6d0ff;border-color:#b37feb}
+.conv-tool-detail-btn{display:inline-flex;align-items:center;gap:3px;background:#e6f7ff;color:#1890ff;border:1px solid #91d5ff;border-radius:4px;padding:1px 6px;font-size:11px;cursor:pointer;line-height:1.4;transition:background .15s;margin-left:4px}
+.conv-tool-detail-btn:hover{background:#bae7ff;border-color:#69c0ff}
+.tool-detail-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.tool-detail-modal-overlay.active{opacity:1;pointer-events:auto}
+.tool-def-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.tool-def-modal-overlay.active{opacity:1;pointer-events:auto}
+.tool-def-modal{background:#fff;border-radius:12px;width:90%;max-width:640px;max-height:80vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.18)}
+.tool-def-modal-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #f0f0f0;background:#faf5ff}
+.tool-def-modal-header h3{margin:0;font-size:15px;color:#333}
+.tool-def-modal-header .tool-def-skill-badge{display:inline-block;background:#722ed1;color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;margin-left:8px}
+.tool-def-modal-close{background:none;border:none;font-size:20px;color:#999;cursor:pointer;padding:4px 8px;line-height:1}
+.tool-def-modal-close:hover{color:#333}
+.tool-def-modal-body{padding:16px 18px;overflow-y:auto;flex:1}
+.tool-def-modal-body .def-section{margin-bottom:14px}
+.tool-def-modal-body .def-section-title{font-size:12px;color:#999;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+.tool-def-modal-body .def-desc{font-size:13px;color:#333;line-height:1.7}
+.tool-def-modal-body pre{margin:0;padding:12px;background:#f7f7f8;border-radius:6px;font-size:11px;line-height:1.5;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow:auto;border:1px solid #eee}
+/* skill_description（markdown 原文）：单独样式，紫色调和 skill badge 呼应，较高的 max-height 以容纳长描述 */
+.tool-def-modal-body pre.def-skill-md{background:#faf5ff;border-color:#e9dafc;color:#444;font-size:12px;line-height:1.65;max-height:360px}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-logo">
+    <svg viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="6" fill="#07C160"/><path d="M16 8C11.58 8 8 11.58 8 16c0 2.35 1.06 4.42 2.73 5.93L9.6 25.6l4-2.13c.77.16 1.58.26 2.4.26 4.42 0 7.73-3.31 7.73-7.73C23.73 11.58 20.42 8 16 8z" fill="#fff"/></svg>
+    <span>Agent 评测报告</span>
+  </div>
+  <span id="buildVersion" style="margin-left:auto;font-size:12px;color:#999"></span>
+</header>
+
+<div class="main">
+  <!-- 左侧栏：Case 列表 -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div id="skillSwitcher" class="skill-switcher" style="display:none;margin:-16px -16px 12px;padding:12px 16px;border-bottom:1px solid #f0f0f0">
+        <select id="skillSelect"></select>
+      </div>
+      <div id="overallCard" style="display:none;margin-bottom:10px;padding:10px 12px;background:#f0f9f4;border:1px solid #c5ebd4;border-radius:8px">
+        <div style="font-size:11px;color:#666;margin-bottom:4px">全小程序总览</div>
+        <div id="overallText" style="font-size:12px;color:#333;line-height:1.6"></div>
+      </div>
+      <h2>评测用例</h2>
+      <div class="skill-name" id="skillNameLabel"></div>
+        <div class="miniapp-info" id="miniappInfo"></div>
+        <div class="miniapp-info" id="runSkillsInfo" style="display:none"></div>
+    </div>
+    <div class="case-list" id="caseList"></div>
+  </aside>
+
+  <!-- 右侧内容区 -->
+  <div class="content">
+    <!-- 任务总览视图 -->
+    <div class="task-overview" id="taskOverview"></div>
+
+    <!-- Case 详情视图（互斥） -->
+    <div class="case-detail" id="caseDetail"></div>
+  </div>
+</div>
+
+<script>/* __EVAL_DATA_PLACEHOLDER__ */</script>
+<script>
+(function(){
+  const D = window.__EVAL_DATA__;
+  if(!D){document.querySelector('.content').innerHTML='<div class="empty">暂无评测数据</div>';return}
+
+  // 数据初始化
+  let cases = Array.isArray(D.cases) && D.cases.length
+    ? D.cases
+    : [{idx:1, eval:D.eval, attribution:D.attribution, gen_trajectory:D.gen_trajectory, gen_checklist:D.gen_checklist, gen_intent:D.gen_intent}];
+  let summary = D.summary || null;
+  let review = D.skill_review?.skill_review || null;
+  const timing = D.timing || {};
+  let start = D.start || {};
+  let toolSizeStats = (Array.isArray(D.skills) && D.skills.length)
+    ? (D.skills[0].explore_tool_size_stats || null) : null;
+  let apiCoverage = (Array.isArray(D.skills) && D.skills.length)
+    ? (D.skills[0].api_coverage || null) : null;
+  const llmSummary = D.llm_summary || null;
+  const timingSummary = D.timing_summary || null;
+  const apiStats = D.api_stats || null;
+
+  let currentIdx = -2; // 哨兵：未首次渲染。renderForCurrentHash 跑过后归一为 -1（总览）或 arrayIdx（case 详情）
+
+  // 渲染版本号
+  const _bi=D.eval_build_info||start.eval_build_info;
+  if(_bi){document.getElementById('buildVersion').textContent=`v${_bi.version} (${_bi.build_time})`}
+
+  // 当前选中 skill 名（用于构造 snapshot 相对路径；多 skill 切换时会更新）
+  let currentSkillName = (Array.isArray(D.skills) && D.skills[0]?.name)
+    || D.start?.adapter_config?.skill
+    || '';
+
+  // ── 工具函数 ──
+  function h(s){return s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+  /** 渲染对话文本：转义后将 <a data-miniprogram-*> 渲染为可见链接（不跳转），hover 显示原始代码 */
+  function renderContent(s){
+    var escaped=h(s);
+    return escaped.replace(/&lt;a\s([^]*?data-miniprogram-[^]*?)&gt;([^]*?)&lt;\/a&gt;/g,function(match,attrs,text){
+      var raw=match.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"');
+      var tip=raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      return '<span class="agent-link" onclick="return false">'+h(text)+'<span class="agent-link-tooltip">'+tip+'</span></span>';
+    });
+  }
+  function pct(v){return Math.round((v||0)*100)}
+  function fmtNum(n){
+    if(n==null||isNaN(n)) return '-';
+    n=Number(n);
+    if(n>=1e6) return (n/1e6).toFixed(2)+'M';
+    if(n>=1e4) return (n/1000).toFixed(1)+'K';
+    return n.toLocaleString('en-US');
+  }
+  function fmtDuration(sec){
+    if(sec==null||isNaN(sec)) return '-';
+    sec=Number(sec);
+    if(sec<60) return sec.toFixed(1)+'s';
+    const m=Math.floor(sec/60),s=Math.round(sec-m*60);
+    if(m<60) return m+'m '+s+'s';
+    const hh=Math.floor(m/60),mm=m-hh*60;
+    return hh+'h '+mm+'m';
+  }
+  function levelName(lv){return lv==='L1'?'环境实现':lv==='L2'?'超出Skill范围':lv==='L3'?'知识问题':lv==='L4'?'模型推理':lv}
+  // 归因等级名词解释（与 attribution prompt 中的 L1-L4 定义保持一致）
+  const LEVEL_DESC={
+    L1:'L1 · 环境实现问题：Agent 已正确调用了接口，但因 API 参数设计不合理、接口调用报错、storage 等内部状态维护错乱、接口定义与实现不对齐等环境层面的原因导致问题。注意：「开发者未返回某字段」不算 L1，应归为 L2。',
+    L2:'L2 · 用户需求超出 Skill 范围：用户提出的需求本身无法被任何接口满足，或现有接口的返回字段无法支撑用户需求，或不在 Agent 业务范围内。',
+    L3:'L3 · 知识注入问题：Agent 未正确调用接口，且属于 Skill 描述中的知识缺失，包括专业知识缺失、专业术语描述缺失、流程定义不完整、示例不准确、模糊概念未澄清等知识配置层面的问题。',
+    L4:'L4 · 模型自身问题：Agent 未正确调用接口，但不属于知识性问题，而是模型自身对用户意图理解偏差或逻辑推理错误，导致工具选择或参数填写失误。'
+  };
+  function levelDesc(lv){return LEVEL_DESC[lv]||'';}
+
+  /**
+   * 获取 case 中截断后可展示的归因项（L1/L3）。
+   * 规则：如果存在 L2/L4 项，从其最小 step_index 处截断，只保留 step_index 小于该截断点的 L1/L3。
+   */
+  /**
+   * 数据展示均依赖 mjs 在 gen_report 阶段注入的 c.view（buildCaseView）。
+   * 模板侧不再做任何 L4/L2 过滤、错误统计、通过率计算。
+   */
+  function getVisibleAttrItems(c){return c.view?.visible_attr_items||[]}
+  function caseIsVisible(c){return !!c.view?.is_complete}
+  function caseHasAttribution(c){return !!c.view?.has_visible_attr}
+  function caseAttrLevels(c){return new Set(c.view?.attr_levels||[])}
+  function casePassRate(c){return c.view?.pass_rate??0}
+  /** case 是否涉及 expand 实体（负例-边界测试）：selected_entity_identifiers 中包含的实体是否属于扩展实体 */
+  function caseHasExpand(c){
+    const all=c.gen_intent?.all_entities||[];
+    const sel=new Set(c.gen_intent?.selected_entity_identifiers||[]);
+    if(!sel.size||!all.length) return false;
+    return all.some(e=>sel.has(e?.identifier)&&e?.is_expanded);
+  }
+  /** 获取 selected 中属于扩展的实体列表 */
+  function caseExpandedEntities(c){
+    const all=c.gen_intent?.all_entities||[];
+    const sel=new Set(c.gen_intent?.selected_entity_identifiers||[]);
+    if(!sel.size||!all.length) return [];
+    return all.filter(e=>sel.has(e?.identifier)&&e?.is_expanded);
+  }
+  function caseFailedCount(c){return c.view?.failed_count??0}
+  function caseTotalChecks(c){return c.view?.total_checks??0}
+  function caseFailedChecks(c){return c.view?.failed_checks||[]}
+  function caseVisibleEvalItems(c){return c.view?.visible_eval_items||[]}
+
+  /**
+   * 渲染过滤后的 checklist 列表，挂在用例详情左列。
+   * 状态：满分=✓ 绿、部分=◐ 橙、0 分=✗ 红、unevaluable=○ 灰（标"未评估"）
+   * 点击可跳转到 evidence_indices 末位对应的轨迹消息。
+   */
+  function renderChecklistSection(c, items, checklist){
+    if(!items||!items.length){
+      return '<div style="margin-bottom:16px;padding:12px 16px;background:#fafafa;border:1px solid #f0f0f0;border-radius:8px;color:#999;font-size:13px">📋 暂无 Checklist 项</div>';
+    }
+    const failedCount=caseFailedCount(c);
+    const totalChecks=caseTotalChecks(c);
+    const failLabel=failedCount>0?' · <span style="color:#fa541c">错 '+failedCount+'</span>':'';
+    let html='<div class="attr-summary-bar" style="margin-bottom:16px">'
+      +'<h4>📋 Checklist（'+totalChecks+' 项'+failLabel+'）</h4>'
+      +'<div class="attr-summary-list">';
+    items.forEach(it=>{
+      const ck=checklist.find(x=>(typeof x.index==='number'?x.index:(checklist.indexOf(x)+1))===it.step_index)||{};
+      const desc=h(ck.description||it.description||('step '+it.step_index));
+      let badge,bg,bd,color;
+      if(it.unevaluable){
+        badge='○ 未评估';bg='#fafafa';bd='#e5e5e5';color='#999';
+      } else if((it.score??0)>=(it.max_score??1)){
+        badge='✓ 通过';bg='#f6ffed';bd='#b7eb8f';color='#52c41a';
+      } else if((it.score??0)>0){
+        badge='◐ 部分';bg='#fff7e6';bd='#ffd591';color='#fa8c16';
+      } else {
+        badge='✗ 失败';bg='#fff2e8';bd='#ffbb96';color='#fa541c';
+      }
+      const lastEvi=Array.isArray(it.evidence_indices)&&it.evidence_indices.length
+        ? it.evidence_indices[it.evidence_indices.length-1]
+        : null;
+      const trajId=lastEvi!=null?('traj-'+lastEvi):null;
+      const titleHtml=trajId
+        ?'<a href="javascript:void(0)" onclick="var el=document.getElementById(\''+trajId+'\');if(el){el.scrollIntoView({behavior:\'smooth\',block:\'center\'});el.style.boxShadow=\'0 0 0 3px #1890ff\';setTimeout(function(){el.style.boxShadow=\'\'},2500)}" style="font-size:13px;color:#1890ff;text-decoration:none;cursor:pointer;border-bottom:1px dashed #1890ff">'+desc+' ↗</a>'
+        :'<span style="font-size:13px;color:#333">'+desc+'</span>';
+      // debug 模式：构建可展开的 reason 区域
+      let reasonHtml='';
+      if(c.view?.debug){
+        const reason=it.unevaluable?(it.unevaluable_reason||''):(it.reason||'');
+        if(reason){
+          const reasonId='ck-reason-'+it.step_index+'-'+Math.random().toString(36).slice(2,8);
+          const label=it.unevaluable?'未评估原因':'评分依据';
+          reasonHtml=`<div style="margin-top:4px">`
+            +`<a href="javascript:void(0)" onclick="var r=document.getElementById('${reasonId}');if(r){r.style.display=r.style.display==='none'?'block':'none';this.textContent=r.style.display==='none'?'▶ ${label}':'▼ ${label}'}" style="font-size:11px;color:#8c8c8c;text-decoration:none;cursor:pointer">▶ ${label}</a>`
+            +`<div id="${reasonId}" style="display:none;margin-top:4px;padding:6px 10px;background:rgba(0,0,0,.03);border-radius:4px;font-size:12px;color:#666;line-height:1.6;white-space:pre-wrap">${h(reason)}</div>`
+            +`</div>`;
+        }
+      }
+      html+='<div style="display:flex;flex-direction:column;gap:0;padding:8px 12px;background:'+bg+';border:1px solid '+bd+';border-radius:8px;margin-bottom:6px">'
+        +'<div style="display:flex;align-items:flex-start;gap:8px">'
+        +'<span style="flex-shrink:0;font-size:11px;font-weight:600;padding:2px 6px;border-radius:3px;color:'+color+';background:#fff;border:1px solid '+bd+'">'+badge+'</span>'
+        +'<span style="flex:1;line-height:1.5">'+titleHtml+'</span>'
+        +'</div>'
+        +reasonHtml
+        +'</div>';
+    });
+    html+='</div></div>';
+    return html;
+  }
+
+
+  /** 美化 JSON 字符串；解析失败则原样返回 */
+  function jsonPretty(raw){
+    if(!raw||typeof raw!=='string') return '';
+    try{return JSON.stringify(JSON.parse(raw),null,2)}catch{return raw}
+  }
+
+  /** 判断 structuredContent 是否为空（null/undefined/空字符串/空对象） */
+  function isEmptyStructuredContent(sc){
+    if(!sc) return true;
+    if(typeof sc==='string') return sc.trim()==='';
+    if(typeof sc==='object' && Object.keys(sc).length===0) return true;
+    return false;
+  }
+
+  /** 渲染 tool call 的输入/输出区：默认折叠，点击 summary 展开 */
+  function renderToolSection(label,full){
+    if(!full) return '';
+    return `<details class="conv-tool-section"><summary>${label}</summary><pre class="conv-tool-pre">${h(full)}</pre></details>`;
+  }
+
+  /** 格式化时间戳为 MM-DD HH:mm:ss；无 ts 返回空串 */
+  function fmtTs(ts){
+    if(!ts) return '';
+    const d=new Date(ts);
+    if(isNaN(d.getTime())) return '';
+    const pad=n=>String(n).padStart(2,'0');
+    return `${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+  // 生成轨迹内联归因展示（只呈现归因，不呈现 checklist 评分信息）
+  // renderedStepIndices：已渲染的 step_index 集合，避免同一归因项在多个轨迹位置重复展示
+  function renderInlineChecklist(trajIdx, trajIdxToIssues, trajIdxToL3, trajIdxToAttr, stepToAttr, checklist, items, l3Items, renderedStepIndices){
+    const l3Here=trajIdxToL3.get(trajIdx)||[];
+    const attrHere=trajIdxToAttr.get(trajIdx)||[];
+    if(!l3Here.length&&!attrHere.length) return '';
+    // 收集此轨迹位置涉及的所有 step_index（仅归因相关）
+    const stepSet=new Set();
+    l3Here.forEach(i=>stepSet.add(i.step_index));
+    attrHere.forEach(i=>stepSet.add(i.step_index));
+    let out='';
+    stepSet.forEach(si=>{
+      // 跳过已经在之前轨迹位置渲染过的项
+      if(renderedStepIndices && renderedStepIndices.has(si)) return;
+      if(renderedStepIndices) renderedStepIndices.add(si);
+      // L1/L3 归因
+      const attrForStep=stepToAttr.get(si);
+      if(attrForStep){
+        out+=`<div class="inline-attr-card" id="attr-step-${si}" style="margin-top:8px;padding:10px 12px;background:#fff;border:1px solid #f0f0f0;border-radius:8px;transition:box-shadow .3s,border-color .3s">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+            <span class="attr-badge ${h(attrForStep.level)}" data-tip="${h(levelDesc(attrForStep.level))}" style="font-size:10px;padding:1px 5px;cursor:help">${levelName(attrForStep.level)}</span>
+            <span style="font-size:12px;font-weight:600;color:#333">${h(attrForStep.brief||attrForStep.description||'')}</span>
+          </div>
+          <div style="display:flex;gap:10px">
+            ${attrForStep.reason?`<div style="flex:1;background:#fafafa;border:1px solid #f0f0f0;border-radius:6px;padding:10px 12px">
+              <div style="font-size:12px;color:#999;font-weight:600;margin-bottom:4px">🔍 AI自动归因</div>
+              <div style="font-size:13px;color:#555;line-height:1.6">${h(attrForStep.reason)}</div>
+            </div>`:''}
+            ${attrForStep.suggestion?`<div style="flex:1;background:#f6ffed;border:1px solid #d9f7be;border-radius:6px;padding:10px 12px">
+              <div style="font-size:12px;color:#52c41a;font-weight:600;margin-bottom:4px">💡 AI修复建议</div>
+              <div style="font-size:13px;color:#555;line-height:1.6">${h(attrForStep.suggestion)}</div>
+            </div>`:''}
+          </div>
+        </div>`;
+      }
+    });
+    return out;
+  }
+  function parseSkillName(){
+    // 优先：start.json 里由 app.json::agent.skills 落下来的真名
+    if(start.adapter_config?.skill) return start.adapter_config.skill;
+    // 兼容老 schema：skill 描述 markdown 首行 `# xxx`
+    const sd = start.skill || start.skill_description || '';
+    const m = sd.match(/^#\s*(.+?)(?:\n|$)/);
+    if(m) return m[1].trim();
+    const p=start.adapter_config?.default_skill_path||'';
+    return p?p.split('/').pop():(start.project_name||'未知 Skill');
+  }
+  function lastFinished(){
+    let latest='';
+    for(const v of Object.values(timing)){
+      if(v.finished_at&&v.finished_at>latest)latest=v.finished_at;
+    }
+    if(!latest)return '-';
+    try{return new Date(latest).toLocaleString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).replace(/\//g,'-');}catch{return latest.replace('T',' ').replace('Z','');}
+  }
+  function strokeOffset(rate,r){const c=2*Math.PI*r;return c-c*rate}
+
+  // 构造 snapshot 文件的 URL 前缀：`skills/<skill>/cases/<idx>/`
+  function buildSnapshotPrefix(idx){
+    return currentSkillName
+      ? `skills/${encodeURIComponent(currentSkillName)}/cases/${idx}/`
+      : `cases/${idx}/`;
+  }
+
+  // 对 cases 按数字序号排列
+  function sortedCaseIndices(){
+    return cases.map((_,i)=>i);
+  }
+
+  // ── 计算任务级汇总（基于 view 字段聚合）──
+  function computeTaskSummary(){
+    const visibleCases=cases.filter(caseIsVisible);
+    const passedCases=visibleCases.filter(c=>casePassRate(c)===1);
+    const avgRate=visibleCases.length?passedCases.length/visibleCases.length:0;
+    let l1Count=0,l3Count=0,passCount=0,failCount=0;
+    visibleCases.forEach(c=>{
+      (c.view?.visible_attr_items||[]).forEach(it=>{
+        if(it.level==='L1')l1Count++;
+        if(it.level==='L3')l3Count++;
+      });
+      passCount+=(c.view?.total_checks||0)-(c.view?.failed_count||0);
+      failCount+=(c.view?.failed_count||0);
+    });
+    const defectCount=l1Count+l3Count;
+    return {avgRate, l1Count, l3Count, passCount, failCount, defectCount, totalCases:visibleCases.length};
+  }
+
+  // ── 视图切换：URL 单源驱动 ──
+  // 视图状态完全派生自 location.hash：
+  //   #case-{c.idx} → 选中对应 case
+  //   其他/空      → 总览
+  // 用户操作（点 case / 返回总览 / 切 skill）只通过 navigateToCase 写 hash；
+  // 渲染由 renderForCurrentHash 在启动 / hashchange 时统一执行。
+  // 协议详见 docs/eval/ARCHITECTURE.md「报告 Hash 深链协议」。
+  const HASH_RE = /(?:^#|&)case[-=](\d+)/i;
+  function navigateToCase(caseIdxValue){
+    const newHash = (caseIdxValue == null) ? '' : '#case-' + caseIdxValue;
+    if (location.hash !== newHash) {
+      if (newHash) {
+        location.hash = newHash;  // 异步 fire hashchange（renderForCurrentHash 的 idempotency guard 会让其 bail）
+      } else {
+        // location.hash = '' 在部分浏览器残留 '#'；replaceState 干净清空。
+        // replaceState 不触发 hashchange，同源 parent 监听需要这个事件做反向同步——手动派发。
+        history.replaceState(null, '', location.pathname + location.search);
+        try { window.dispatchEvent(new HashChangeEvent('hashchange')); }
+        catch (e) { window.dispatchEvent(new Event('hashchange')); }
+      }
+    }
+    renderForCurrentHash();  // 始终同步渲染——后续逻辑（如点击后立即滚动）能看到新视图
+  }
+  function renderForCurrentHash(){
+    const m = (location.hash || '').match(HASH_RE);
+    const arrayIdx = m ? cases.findIndex(c => Number(c.idx) === Number(m[1])) : -1;
+    if (arrayIdx === currentIdx) return;  // 状态已对齐，跳过 DOM 重写
+    currentIdx = arrayIdx;
+    if (arrayIdx >= 0) {
+      document.getElementById('taskOverview').style.display='none';
+      document.getElementById('caseDetail').classList.add('active');
+      document.querySelectorAll('#caseList .case-item').forEach(el =>
+        el.classList.toggle('active', Number(el.dataset.idx) === arrayIdx));
+      const activeEl = document.querySelector('#caseList .case-item.active');
+      if (activeEl && activeEl.scrollIntoView) activeEl.scrollIntoView({ block: 'nearest' });
+      renderCaseDetail();
+    } else {
+      document.getElementById('taskOverview').style.display='flex';
+      document.getElementById('caseDetail').classList.remove('active');
+      document.querySelectorAll('.case-item').forEach(x => x.classList.remove('active'));
+      renderTaskOverview();
+    }
+  }
+  // 旧 API 保留为 thin wrapper（兼容文件内既有调用点）：
+  // 它们的职责退化为"声明用户意图"，不再直接 mutate DOM 或 currentIdx。
+  function showCaseDetail(arrayIdx){
+    navigateToCase(cases[arrayIdx] ? cases[arrayIdx].idx : null);
+  }
+  function showOverview(){
+    navigateToCase(null);
+  }
+
+  // ── 渲染任务总览（三 Tab）──
+  let activeTaskTab='attribution';
+  function renderTaskOverview(){
+    const ts=computeTaskSummary();
+    const r=40, circ=2*Math.PI*r;
+
+    let html=`
+      <div class="task-overview-top">
+      <h1 style="font-size:20px;font-weight:700;color:#333;margin:0 0 18px 0">${h(parseSkillName())} - 评测报告</h1>
+      <div class="task-overview-header">
+        <div class="left-part">
+          <div class="task-ring">
+            <svg width="100" height="100" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="${r}" fill="none" stroke="#e5e5e5" stroke-width="8"/>
+              <circle cx="50" cy="50" r="${r}" fill="none" stroke="#07C160" stroke-width="8"
+                stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${strokeOffset(ts.avgRate,r).toFixed(1)}"
+                stroke-linecap="round"/>
+            </svg>
+            <div class="task-ring-text">
+              <div class="task-ring-val">${pct(ts.avgRate)}%</div>
+              <div class="task-ring-label">通过率</div>
+            </div>
+          </div>
+          <div class="task-stats-col">
+            <div class="pf-box pass">
+              <span>通过<span class="pf-label" data-tip="检查项（Checklist）：针对每条用例自动生成的「原子化、可审计」评测步骤，由 LLM-as-a-Judge 客观判定 Agent 是否真的完成了用户想做的事，而不考核是否走固定流程。每条检查项只验证一个关键点（例如：是否定位到了正确的实体、写操作是否真实发生且参数正确、最终结果是否反馈给用户）。一条用例通常包含 4～5 项检查项，得分按 1.0/0.5/0.0 三档评定。">检查项</span></span>
+              <span>${ts.passCount}</span>
+            </div>
+            <div class="pf-box fail">
+              <span>未通过检查项</span>
+              <span>${ts.failCount}</span>
+            </div>
+          </div>
+        </div>
+        <div class="right-meta">
+          <div>${lastFinished()}</div>
+          <div>共 ${ts.totalCases} 条用例 · 缺陷 ${ts.defectCount} 项</div>
+          ${llmSummary?.model?`<div class="model-name">模型：${h(llmSummary.model)}</div>`:''}
+        </div>
+      </div>
+      </div>
+      <div class="task-tab-nav" id="taskTabNav">
+        <button class="task-tab-btn${activeTaskTab==='attribution'?' active':''}" data-tab="attribution">缺陷详情</button>
+        <button class="task-tab-btn${activeTaskTab==='api-stats'?' active':''}" data-tab="api-stats">接口成功率</button>
+        <button class="task-tab-btn${activeTaskTab==='coverage'?' active':''}" data-tab="coverage">接口信息</button>
+        <button class="task-tab-btn${activeTaskTab==='review'?' active':''}" data-tab="review">文档质量</button>
+      </div>
+      <div class="task-tab-panes-wrap" id="taskTabPanes">
+    <div class="task-tab-pane" id="taskPane-attribution" data-tab="attribution"><h3 class="task-tab-pane-title with-action"><span>缺陷详情</span><span id="defectsExportSlot"></span></h3><div class="task-tab-pane-body" id="taskPaneBody-attribution"></div></div>
+        <div class="task-tab-pane" id="taskPane-api-stats" data-tab="api-stats"><h3 class="task-tab-pane-title">接口成功率</h3><div class="task-tab-pane-body" id="taskPaneBody-api-stats"></div></div>
+        <div class="task-tab-pane" id="taskPane-coverage" data-tab="coverage"><h3 class="task-tab-pane-title">接口信息</h3><div class="task-tab-pane-body" id="taskPaneBody-coverage"></div></div>
+        <div class="task-tab-pane" id="taskPane-review" data-tab="review"><h3 class="task-tab-pane-title">文档质量</h3><div class="task-tab-pane-body" id="taskPaneBody-review"></div></div>
+      </div>`;
+
+    document.getElementById('taskOverview').innerHTML=html;
+    renderTaskAttribution(document.getElementById('taskPaneBody-attribution'));
+    renderApiStats(document.getElementById('taskPaneBody-api-stats'));
+    renderApiCoverage(document.getElementById('taskPaneBody-coverage'));
+    renderTaskReview(document.getElementById('taskPaneBody-review'));
+
+    // ── 通用 plugin tabs 渲染 ──
+    // 由 mp-agent-skills 的 report.injectTabs hook 注入：D.plugin_tabs = [{ id, label, html }]
+    // 每个 tab 由插件在 Node.js 端预生成 HTML 字符串，模板侧仅做 DOM 拼接
+    const pluginTabs = Array.isArray(D.plugin_tabs) ? D.plugin_tabs : [];
+    if (pluginTabs.length) {
+      const navEl = document.getElementById('taskTabNav');
+      const panesEl = document.getElementById('taskTabPanes');
+      for (const tab of pluginTabs) {
+        if (!tab || !tab.id || !tab.label) continue;
+        const btn = document.createElement('button');
+        btn.className = 'task-tab-btn';
+        btn.dataset.tab = tab.id;
+        btn.textContent = tab.label;
+        navEl.appendChild(btn);
+
+        const pane = document.createElement('div');
+        pane.className = 'task-tab-pane';
+        pane.id = 'taskPane-' + tab.id;
+        pane.dataset.tab = tab.id;
+        pane.innerHTML = `<h3 class="task-tab-pane-title">${h(tab.label)}</h3><div class="task-tab-pane-body">${tab.html || ''}</div>`;
+        panesEl.appendChild(pane);
+      }
+    }
+
+    const scrollEl=document.getElementById('taskTabPanes');
+
+    // Tab 高亮刷新
+    const setActiveTab=(tab)=>{
+      activeTaskTab=tab;
+      document.querySelectorAll('#taskTabNav .task-tab-btn').forEach(b=>{
+        b.classList.toggle('active', b.dataset.tab===tab);
+      });
+    };
+
+    // 点 Tab：立即高亮 + 平滑滚动到对应 pane
+    let isClickScrolling=false;
+    document.getElementById('taskTabNav').addEventListener('click',e=>{
+      const btn=e.target.closest('.task-tab-btn');
+      if(!btn)return;
+      const tab=btn.dataset.tab;
+      setActiveTab(tab);
+      isClickScrolling=true;
+      const target=document.getElementById('taskPane-'+tab);
+      if(target){
+        scrollEl.scrollTo({top:target.offsetTop - scrollEl.offsetTop, behavior:'smooth'});
+      }
+      setTimeout(()=>{isClickScrolling=false;},800);
+    });
+
+    // 滚动监听：用 scroll 事件 + 计算各 pane 距容器顶部距离
+    scrollEl.addEventListener('scroll',()=>{
+      if(isClickScrolling) return;
+      const panes=scrollEl.querySelectorAll('.task-tab-pane');
+      let current='attribution';
+      for(const p of panes){
+        if(p.offsetTop - scrollEl.scrollTop <= 80){
+          current=p.dataset.tab;
+        }
+      }
+      if(current!==activeTaskTab) setActiveTab(current);
+    });
+  }
+
+  // ── 评测归因 Tab：罗列所有可展示的 L1/L3 问题（L2/L4 截断后）──
+  // 产品视角问题类型映射（与 attribution.js VALID_CATEGORIES 对齐）
+  const CATEGORY_STYLE={
+    '业务逻辑':{cls:'cat-biz',label:'业务逻辑'},
+    '交互流程':{cls:'cat-flow',label:'交互流程'},
+    '样式渲染':{cls:'cat-style',label:'样式渲染'},
+    '模型理解':{cls:'cat-model',label:'模型理解'},
+    '数据缺失':{cls:'cat-data',label:'数据缺失'}
+  };
+  let currentDefectView='pm'; // 'pm' 产品视角 | 'dev' 开发视角
+
+  function renderCategoryBadge(cat){
+    const s=CATEGORY_STYLE[cat];
+    if(!s)return `<span class="cat-badge cat-unknown">-</span>`;
+    return `<span class="cat-badge ${s.cls}">${h(s.label)}</span>`;
+  }
+
+  function renderPmRows(allIssues){
+    let rows='';
+    allIssues.forEach(issue=>{
+      // case 编号一律用真实 c.idx，与左侧列表 / hash / 任务侧对齐
+      const caseLabel=`Case ${issue.caseIdx}`;
+      const stepIdx=issue.step_index;
+      const scenario=issue.scenario||'-';
+      const phenomenon=issue.phenomenon||'-';
+      const impact=issue.impact||'-';
+      const suggestionPm=issue.suggestion_pm||'-';
+      rows+=`<tr>
+        <td class="col-scenario"><span class="case-link" data-case-idx="${issue.caseArrayIdx}" data-step-idx="${stepIdx!=null?stepIdx:''}" title="点击跳转到缺陷位置">${h(scenario)}</span><div style="font-size:11px;color:#999;margin-top:2px">${caseLabel}</div></td>
+        <td class="col-cat">${renderCategoryBadge(issue.category)}</td>
+        <td>${h(phenomenon)}</td>
+        <td>${h(impact)}</td>
+        <td>${h(suggestionPm)}</td>
+      </tr>`;
+    });
+    return rows;
+  }
+
+  function renderDevRows(allIssues){
+    let rows='';
+    allIssues.forEach(issue=>{
+      const caseLabel=`Case ${issue.caseIdx}`;
+      const stepIdx=issue.step_index;
+      rows+=`<tr>
+        <td><span class="attr-badge ${h(issue.level)}" data-tip="${h(levelDesc(issue.level))}" style="font-size:12px;cursor:help">${levelName(issue.level)}</span></td>
+        <td><span class="case-link" data-case-idx="${issue.caseArrayIdx}" data-step-idx="${stepIdx!=null?stepIdx:''}" title="点击跳转到缺陷位置">${h(issue.brief||issue.reason||'')}</span> <span style="font-size:11px;color:#999;margin-left:4px">${caseLabel}</span></td>
+        <td>${h(issue.suggestion||'-')}</td>
+      </tr>`;
+    });
+    return rows;
+  }
+
+  function renderTaskAttribution(el){
+    const exportSlot=document.getElementById('defectsExportSlot');
+    if(exportSlot)exportSlot.innerHTML='';
+
+    // 收集所有 case 中截断后的 L1/L3 归因
+    const allIssues=[];
+    cases.forEach((c,ci)=>{
+      getVisibleAttrItems(c).forEach(it=>{
+        allIssues.push({...it, caseIdx:c.idx, caseArrayIdx:ci});
+      });
+    });
+
+    if(!allIssues.length){
+      el.innerHTML='<div class="empty" style="padding:30px">🎉 所有用例均未发现问题</div>';
+      return;
+    }
+
+    // 按级别排序：L1 > L3
+    const levelOrder={L1:0,L3:1};
+    allIssues.sort((a,b)=>{
+      if(a.level!==b.level) return (levelOrder[a.level]??9)-(levelOrder[b.level]??9);
+      return a.caseIdx-b.caseIdx;
+    });
+
+    // 渲染导出按钮（始终读 dev 字段，保持研发修复包不变）
+    if(exportSlot){
+      exportSlot.innerHTML=`<span class="defect-view-toggle" role="tablist" aria-label="缺陷视角">
+        <button type="button" data-view="pm" class="${currentDefectView==='pm'?'active':''}">产品视角</button>
+        <button type="button" data-view="dev" class="${currentDefectView==='dev'?'active':''}">开发视角</button>
+      </span><span class="export-defects">
+        <button type="button" class="export-defects__btn" data-action="toggle">导出缺陷</button>
+        <div class="export-defects__menu">
+          <button type="button" class="export-defects__item" data-format="md-fixpack">Markdown 修复包 (.md)</button>
+        </div>
+      </span>`;
+      bindDefectsExport(exportSlot, allIssues);
+      // 绑定视角切换
+      exportSlot.querySelectorAll('.defect-view-toggle button').forEach(btn=>{
+        btn.addEventListener('click',()=>{
+          const v=btn.dataset.view;
+          if(v===currentDefectView)return;
+          currentDefectView=v;
+          renderTaskAttribution(el);
+        });
+      });
+    }
+
+    let html;
+    if(currentDefectView==='pm'){
+      html=`<table class="attr-list-table pm-view">
+        <thead><tr>
+          <th style="width:180px">场景</th>
+          <th style="width:88px">问题类型</th>
+          <th>现象</th>
+          <th style="width:22%">影响</th>
+          <th style="width:24%">建议</th>
+        </tr></thead>
+        <tbody>${renderPmRows(allIssues)}</tbody>
+      </table>`;
+    }else{
+      html=`<table class="attr-list-table">
+        <thead><tr><th style="width:100px">类型</th><th>缺陷</th><th>建议</th></tr></thead>
+        <tbody>${renderDevRows(allIssues)}</tbody>
+      </table>`;
+    }
+
+    el.innerHTML=html;
+
+    // 点击缺陷链接：跳转到对应 case 并滚动到归因卡片（只绑定一次，避免重渲累加）
+    if(!el.dataset.linkBound){
+      el.dataset.linkBound='1';
+      el.addEventListener('click',e=>{
+        const link=e.target.closest('.case-link');
+        if(!link)return;
+        const idx=Number(link.dataset.caseIdx);
+        const stepIdx=link.dataset.stepIdx;
+        showCaseDetail(idx);
+        // 等渲染完成后滚动到归因卡片（renderForCurrentHash 已同步设置好 .active 与右侧 DOM）
+        if(stepIdx!==''){
+          setTimeout(()=>{
+            const target=document.getElementById('attr-step-'+stepIdx);
+            if(target){
+              target.scrollIntoView({behavior:'smooth',block:'center'});
+              target.style.boxShadow='0 0 0 3px #ff9500';
+              target.style.borderColor='#ff9500';
+              setTimeout(()=>{target.style.boxShadow='';target.style.borderColor='#f0f0f0';},2500);
+            }
+          },100);
+        }
+      });
+    }
+  }
+
+  // ── 缺陷导出（绑定按钮事件 + 生成 .md / .json）──
+  function bindDefectsExport(slotEl, issues){
+    const wrap=slotEl.querySelector('.export-defects');
+    if(!wrap)return;
+    const toggleBtn=wrap.querySelector('[data-action="toggle"]');
+    toggleBtn.addEventListener('click',e=>{
+      e.stopPropagation();
+      // 关闭其它已打开的菜单
+      document.querySelectorAll('.export-defects.is-open').forEach(x=>{
+        if(x!==wrap)x.classList.remove('is-open');
+      });
+      wrap.classList.toggle('is-open');
+    });
+    wrap.querySelectorAll('.export-defects__item').forEach(btn=>{
+      btn.addEventListener('click',e=>{
+        e.stopPropagation();
+        wrap.classList.remove('is-open');
+        const fmt=btn.dataset.format;
+        if(fmt==='md-fixpack'){
+          const fixpackPayload=collectDefectsForFixpackExport(issues);
+          if(!fixpackPayload.defects.length)return;
+          const skill=fixpackPayload.skill||'skill';
+          downloadFile(formatExportFilename(skill,'md','fixpack'), buildDefectsFixpackMarkdown(fixpackPayload), 'text/markdown');
+        }
+      });
+    });
+    if(!window.__exportDefectsBound){
+      window.__exportDefectsBound=true;
+      document.addEventListener('click',()=>{
+        document.querySelectorAll('.export-defects.is-open').forEach(x=>x.classList.remove('is-open'));
+      });
+    }
+  }
+
+  // ── 缺陷"修复包"导出（AI Coder 工单版）──
+  const FIXPACK_CONTENT_LIMIT=2000;
+  const FIXPACK_LEVEL_LOCATION={
+    L1:'L1 · 后端接口 / 数据层',
+    L2:'L2 · Skill 能力定义',
+    L3:'L3 · Skill prompt / 知识配置',
+    L4:'L4 · 模型层面'
+  };
+  const FIXPACK_LEVEL_ORDER=['L1','L2','L3','L4'];
+
+  function truncateContent(s){
+    const str=String(s==null?'':s);
+    if(str.length<=FIXPACK_CONTENT_LIMIT)return str;
+    return str.slice(0,FIXPACK_CONTENT_LIMIT)+`…(truncated, total ${str.length} chars)`;
+  }
+
+  function pickFirstUserContent(traj){
+    if(!Array.isArray(traj))return '';
+    for(const st of traj){
+      if(st&&st.role==='user'){
+        return typeof st.content==='string'?st.content:JSON.stringify(st.content||'');
+      }
+    }
+    return '';
+  }
+
+  function slimTrajectoryStep(st){
+    if(!st||typeof st!=='object')return null;
+    const out={role:st.role||''};
+    if(st.content!=null)out.content=truncateContent(st.content);
+    if(st.tool_call_id)out.tool_call_id=st.tool_call_id;
+    if(Array.isArray(st.tool_calls)&&st.tool_calls.length){
+      out.tool_calls=st.tool_calls.map(tc=>({
+        name:tc?.function?.name||tc?.name||'',
+        arguments:tc?.function?.arguments||tc?.arguments||''
+      }));
+    }
+    if(st.snapshot_path)out.snapshot_path=st.snapshot_path;
+    return out;
+  }
+
+  // 把 evidence 区间扩到最近一条 user 边界，并补回中间被跳过的 user 步骤，
+  // 让 AI Coder 能看到完整的对话上下文（用户原话/追问）。
+  function expandEvidenceWithUser(traj, indices){
+    const set=new Set();
+    indices.forEach(idx=>{
+      const n=Number(idx);
+      if(Number.isFinite(n)&&traj[n])set.add(n);
+    });
+    if(!set.size)return [];
+    const arr=[...set];
+    const min=Math.min(...arr), max=Math.max(...arr);
+    for(let i=min-1;i>=0;i--){
+      if(traj[i]&&traj[i].role==='user'){set.add(i);break;}
+    }
+    for(let i=min;i<=max;i++){
+      if(traj[i]&&traj[i].role==='user')set.add(i);
+    }
+    return [...set].sort((a,b)=>a-b);
+  }
+
+  function collectEvidenceSteps(traj, indices){
+    if(!Array.isArray(traj)||!Array.isArray(indices)||!indices.length)return [];
+    const expanded=expandEvidenceWithUser(traj, indices);
+    const result=[];
+    expanded.forEach(n=>{
+      const slim=slimTrajectoryStep(traj[n]);
+      if(slim)result.push({index:n, step:slim});
+    });
+    return result;
+  }
+
+  function readExpectedFromChecklist(c){
+    const list=c?.gen_checklist?.checklist;
+    if(!Array.isArray(list))return '';
+    const lines=[];
+    list.forEach((ck,i)=>{
+      const pass=ck?.scoring_criteria&&ck.scoring_criteria['1.0'];
+      if(pass)lines.push(`${i+1}. ${pass}`);
+    });
+    return lines.join('\n');
+  }
+
+  function collectDefectsForFixpackExport(issues){
+    const summary=computeTaskSummary();
+    const defects=issues.map(it=>{
+      const c=cases[it.caseArrayIdx]||{};
+      const traj=c.gen_trajectory?.trajectory||[];
+      // case 编号一律用真实 c.idx，与左侧列表 / hash / 任务侧对齐
+      const caseIdx=c.idx;
+      const evi=Array.isArray(it.evidence_indices)?it.evidence_indices.slice():[];
+      return {
+        case:{index:caseIdx??null, label:caseIdx!=null?`Case ${caseIdx}`:'Case ?'},
+        level:it.level||'',
+        level_name:levelName(it.level||''),
+        brief:it.brief||'',
+        step_index:(typeof it.step_index==='number')?it.step_index:null,
+        reason:it.reason||'',
+        suggestion:it.suggestion||'',
+        not_other_reasons:Array.isArray(it.not_other_reasons)?it.not_other_reasons.slice():[],
+        evidence_indices:evi,
+        user_prompt:pickFirstUserContent(traj),
+        expected_behavior:readExpectedFromChecklist(c),
+        evidence_steps:collectEvidenceSteps(traj, evi)
+      };
+    });
+    const byLevel={};
+    FIXPACK_LEVEL_ORDER.forEach(lv=>{byLevel[lv]=defects.filter(d=>d.level===lv).length;});
+    return {
+      skill:parseSkillName(),
+      exported_at:new Date().toISOString(),
+      evaluated_at:lastFinished(),
+      model:llmSummary?.model||'',
+      summary:{
+        pass_rate:Number((summary.avgRate||0).toFixed(4)),
+        total_cases:summary.totalCases||0,
+        defect_count:summary.defectCount||0,
+        by_level:byLevel
+      },
+      defects
+    };
+  }
+
+  // 对可能含 ``` 的原文做转义，避免破坏 Markdown 围栏
+  function escapeFenceContent(s){
+    return String(s==null?'':s).replace(/```/g,'``\u200b`');
+  }
+
+  function renderEvidenceStepsMd(lines, steps){
+    if(!steps.length){
+      lines.push('（未提供证据步骤）');
+      return;
+    }
+    steps.forEach(({index, step})=>{
+      lines.push(`- step #${index} | role=${step.role||'-'}`);
+      if(step.tool_call_id)lines.push(`  - tool_call_id: ${step.tool_call_id}`);
+      if(step.snapshot_path)lines.push(`  - snapshot: ${step.snapshot_path}`);
+      if(step.content){
+        lines.push('  - content:');
+        lines.push('    ```');
+        escapeFenceContent(step.content).split('\n').forEach(l=>lines.push('    '+l));
+        lines.push('    ```');
+      }
+      if(step.tool_calls&&step.tool_calls.length){
+        step.tool_calls.forEach(tc=>{
+          lines.push(`  - tool_call: ${tc.name||'-'}`);
+          if(tc.arguments){
+            lines.push('    ```');
+            escapeFenceContent(tc.arguments).split('\n').forEach(l=>lines.push('    '+l));
+            lines.push('    ```');
+          }
+        });
+      }
+    });
+  }
+
+  function renderSingleDefectMd(lines, d, idx){
+    const head=`### ${idx+1}. ${String(d.brief||'-').replace(/\s*\r?\n+\s*/g,' ').trim()} （${d.case.label}${d.step_index!=null?` · step#${d.step_index}`:''}）`;
+    lines.push(head);
+    lines.push('');
+
+    lines.push('**📋 用户原话**');
+    lines.push('');
+    if(d.user_prompt){
+      lines.push('```');
+      escapeFenceContent(d.user_prompt).split('\n').forEach(l=>lines.push(l));
+      lines.push('```');
+    }else{
+      lines.push('（无）');
+    }
+    lines.push('');
+
+    lines.push('**🎯 期望行为（Checklist 通过标准）**');
+    lines.push('');
+    if(d.expected_behavior){
+      d.expected_behavior.split('\n').forEach(l=>lines.push(l));
+    }else{
+      lines.push('（无）');
+    }
+    lines.push('');
+
+    lines.push('**❌ 实际现象**');
+    lines.push('');
+    lines.push(d.reason||'（无）');
+    lines.push('');
+
+    lines.push('**🔍 证据（Trajectory 片段）**');
+    lines.push('');
+    renderEvidenceStepsMd(lines, d.evidence_steps);
+    lines.push('');
+
+    lines.push('**🧭 级别判定（为什么不是其他层级）**');
+    lines.push('');
+    if(d.not_other_reasons.length){
+      d.not_other_reasons.forEach(r=>{
+        if(r&&typeof r==='object'){
+          const lv=r.excluded_level||'?';
+          const ex=r.explanation||'';
+          lines.push(`- **不是 ${lv}**：${ex}`);
+        }else{
+          lines.push(`- ${r}`);
+        }
+      });
+    }else{
+      lines.push('（无）');
+    }
+    lines.push('');
+
+    lines.push('**🛠️ AI修复建议**');
+    lines.push('');
+    lines.push(d.suggestion||'（无）');
+    lines.push('');
+
+    lines.push('**📍 修复位置**');
+    lines.push('');
+    lines.push(FIXPACK_LEVEL_LOCATION[d.level]||'-');
+    lines.push('');
+  }
+
+  function buildDefectsFixpackMarkdown(p){
+    const lines=[];
+    lines.push(`# ${p.skill} 缺陷修复包`,'');
+    lines.push('> 面向 AI Coder 的缺陷工单，每条缺陷含：用户原话 / 期望行为 / 现象 / 证据 / 级别判定 / AI修复建议 / 修复位置。','');
+    lines.push(`- Skill：${p.skill||'-'}`);
+    lines.push(`- 评测时间：${p.evaluated_at||'-'}`);
+    lines.push(`- 导出时间：${p.exported_at||'-'}`);
+    if(p.model)lines.push(`- 模型：${p.model}`);
+    lines.push(`- 通过率：${Math.round((p.summary.pass_rate||0)*100)}%`);
+    lines.push(`- 用例总数：${p.summary.total_cases}`);
+    lines.push(`- 缺陷总数：${p.summary.defect_count}`);
+    const distParts=FIXPACK_LEVEL_ORDER.filter(lv=>p.summary.by_level[lv]>0).map(lv=>`${lv}: ${p.summary.by_level[lv]}`);
+    if(distParts.length)lines.push(`- 按级别分布：${distParts.join('、')}`);
+    lines.push('');
+
+    FIXPACK_LEVEL_ORDER.forEach(lv=>{
+      const items=p.defects.filter(d=>d.level===lv);
+      if(!items.length)return;
+      lines.push(`## ${FIXPACK_LEVEL_LOCATION[lv]||lv}`);
+      lines.push('');
+      items.forEach((d,i)=>renderSingleDefectMd(lines, d, i));
+    });
+
+    return lines.join('\n');
+  }
+
+  function downloadFile(filename, content, mime){
+    const blob=new Blob([content],{type:`${mime};charset=utf-8`});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=filename;a.style.display='none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},0);
+  }
+
+  function formatExportFilename(skill, ext, variant){
+    const safeSkill=String(skill||'skill').replace(/[\\/:*?"<>|\s]+/g,'-');
+    const d=new Date();
+    const pad=n=>String(n).padStart(2,'0');
+    const ts=`${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
+    const tag=variant?`-${variant}`:'';
+    return `${safeSkill}-defects${tag}-${ts}.${ext}`;
+  }
+
+  // ── 文档质量（任务级 tab）──
+  // 把 review.summary 这段段落式文本拆成一条条问题（项目符号）
+  function splitSummaryToBullets(text){
+    if(!text) return [];
+    // 1) 优先按换行切
+    let parts=String(text).split(/\r?\n+/).map(s=>s.trim()).filter(Boolean);
+    // 2) 仅得到一段 → 再按编号 / 项目符号 / 中英文分号、句号切
+    if(parts.length<=1){
+      parts=String(text)
+        // 把"1. 2) ① - • · "等编号统一替换成换行
+        .replace(/(^|[^0-9])([1-9]\d?)[、.\)）]\s+/g,'$1\n')
+        .replace(/[•·]\s*/g,'\n')
+        .replace(/^[\s\-\*]+/gm,'')
+        .split(/\r?\n+|[；;]\s*/)
+        .map(s=>s.trim())
+        .filter(Boolean);
+    }
+    // 3) 再按中文句号兜底切（仅当依然只有 1 项且文本较长）
+    if(parts.length<=1 && text.length>60){
+      parts=String(text).split(/[。！!]\s*/).map(s=>s.trim()).filter(Boolean);
+    }
+    // 去掉过短的碎片（<4 字符），并去重
+    const seen=new Set();
+    return parts.filter(p=>{
+      if(p.length<4) return false;
+      if(seen.has(p)) return false;
+      seen.add(p);
+      return true;
+    });
+  }
+  function renderReviewSummary(summary){
+    if(!summary) return '';
+    const bullets=splitSummaryToBullets(summary);
+    if(bullets.length<=1){
+      // 拆不出多条 → 退回一句话展示
+      return `<div class="review-summary-box">
+        <div class="review-title">📋 总结</div>
+        <div class="review-text">${h(summary)}</div>
+      </div>`;
+    }
+    const items=bullets.map(b=>`<li>${h(b)}</li>`).join('');
+    return `<div class="review-summary-box">
+      <div class="review-title">📋 总结（共 ${bullets.length} 项问题）</div>
+      <ul class="review-summary-bullets">${items}</ul>
+    </div>`;
+  }
+
+  function renderTaskReview(el){
+    if(!review){
+      el.innerHTML='<div class="empty" style="padding:20px">暂无文档质量数据</div>';
+      return;
+    }
+    if(!review.has_issues){
+      el.innerHTML=`<div class="review-pass" style="padding:20px">✅ 文档质量良好，未发现问题</div>
+        ${renderReviewSummary(review.summary)}`;
+      return;
+    }
+    const issues=review.issues||[];
+    el.innerHTML=`
+      ${renderReviewSummary(review.summary)}
+      <div class="review-issues-list">
+      ${issues.map(is=>`
+        <div class="review-issue">
+          <div class="issue-header">
+            ${is.type?`<span class="issue-tag">${h(is.type)}</span>`:''}
+            ${is.api?`<span class="issue-api">${h(is.api)}</span>`:''}
+          </div>
+          <div class="issue-desc">${h(is.description)}</div>
+          ${is.suggestion?`<div class="issue-suggestion">💡 建议：${h(is.suggestion)}</div>`:''}
+        </div>`).join('')}
+      </div>`;
+  }
+
+  // ── 接口成功率 Tab：invokeMethod 调用统计 ──
+  function renderApiStats(el){
+    if(!apiStats||!apiStats.overall||apiStats.overall.total===0){
+      el.innerHTML='<div class="empty" style="padding:20px">暂无 invokeMethod 调用记录</div>';
+      return;
+    }
+    const ov=apiStats.overall;
+    const rateColor=v=>v>=0.9?'#07C160':v>=0.6?'#fa8c16':'#f5222d';
+    const ovColor=rateColor(ov.successRate);
+
+    // 整体概览卡片
+    const r2=32, circ2=2*Math.PI*r2;
+    let html=`<div style="display:flex;align-items:center;gap:24px;margin-bottom:24px;padding:16px 20px;background:#fafafa;border-radius:10px;border:1px solid #e5e5e5">
+      <div style="position:relative;width:80px;height:80px;flex-shrink:0">
+        <svg width="80" height="80" viewBox="0 0 80 80" style="transform:rotate(-90deg)">
+          <circle cx="40" cy="40" r="${r2}" fill="none" stroke="#e5e5e5" stroke-width="6"/>
+          <circle cx="40" cy="40" r="${r2}" fill="none" stroke="${ovColor}" stroke-width="6"
+            stroke-dasharray="${circ2.toFixed(1)}" stroke-dashoffset="${((1-ov.successRate)*circ2).toFixed(1)}"
+            stroke-linecap="round"/>
+        </svg>
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center">
+          <div style="font-size:18px;font-weight:700;color:${ovColor}">${(ov.successRate*100).toFixed(1)}%</div>
+        </div>
+      </div>
+      <div style="flex:1">
+        <div style="font-size:15px;font-weight:600;color:#333;margin-bottom:6px">接口成功率</div>
+        <div style="font-size:13px;color:#666;line-height:1.8">
+          总调用 <b>${ov.total}</b> 次，成功 <b style="color:#07C160">${ov.success}</b> 次，失败 <b style="color:#f5222d">${ov.failed}</b> 次
+        </div>
+      </div>
+    </div>`;
+
+    // 按工具拆分
+    const tools=Object.entries(apiStats.by_tool||{}).sort(([,a],[,b])=>a.successRate-b.successRate);
+    if(tools.length){
+      html+=`<h4 style="font-size:14px;font-weight:600;margin:16px 0 10px;padding-bottom:8px;border-bottom:1px solid #eee">按工具拆分</h4>`;
+      html+=`<table class="perf-table"><thead><tr><th>工具名</th><th class="num">调用次数</th><th class="num">成功</th><th class="num">失败</th><th class="num">成功率</th></tr></thead><tbody>`;
+      for(const [name,st] of tools){
+        const rc=rateColor(st.successRate);
+        html+=`<tr><td><b>${h(name)}</b></td><td class="num">${st.total}</td><td class="num" style="color:#07C160">${st.success}</td><td class="num" style="color:#f5222d">${st.failed}</td><td class="num"><span style="color:${rc};font-weight:600">${(st.successRate*100).toFixed(1)}%</span></td></tr>`;
+        if(st.failures&&st.failures.length){
+          html+=`<tr><td colspan="5" style="padding:0 0 0 16px;border-top:none"><details style="font-size:11px;cursor:pointer;margin:4px 0 8px"><summary style="color:#1890ff">${st.failures.length} 个失败调用</summary><div style="margin-top:6px;max-height:300px;overflow:auto">`;
+          for(const f of st.failures){
+            html+=`<div style="padding:6px 8px;border:1px solid #f0f0f0;border-radius:4px;margin-bottom:4px;background:#fafafa"><div style="display:flex;gap:8px;margin-bottom:4px;font-size:11px;color:#666"><span>Skill: ${h(f.skill)}</span><span>Case: ${f.caseIdx}</span><span style="padding:1px 5px;border-radius:3px;font-size:10px;font-weight:500;${f.errorType==='api_not_found'?'background:#fff3e0;color:#e65100':f.errorType==='invoke_error'?'background:#fbe9e7;color:#c62828':'background:#f5f5f5;color:#666'}">${f.errorType==='api_not_found'?'API未找到':f.errorType==='invoke_error'?'调用失败':'其他'}</span></div><details style="margin:2px 0"><summary style="font-size:10px;color:#999">请求参数</summary><pre style="font-size:10px;background:#f5f5f5;padding:4px;border-radius:3px;max-height:120px;overflow:auto;white-space:pre-wrap;word-break:break-all">${h(JSON.stringify(f.arguments,null,2))}</pre></details><details style="margin:2px 0"><summary style="font-size:10px;color:#999">返回内容</summary><pre style="font-size:10px;background:#f5f5f5;padding:4px;border-radius:3px;max-height:120px;overflow:auto;white-space:pre-wrap;word-break:break-all">${h(f.response?.content||'')}</pre></details></div>`;
+          }
+          html+=`</div></details></td></tr>`;
+        }
+      }
+      html+=`</tbody></table>`;
+    }
+
+    el.innerHTML=html;
+  }
+
+  // ── 接口覆盖 Tab：工具调用统计与覆盖率 ──
+  function renderApiCoverage(el){
+    if(!apiCoverage||!apiCoverage.total_calls){
+      el.innerHTML='<div class="empty" style="padding:20px">暂无接口覆盖数据</div>';
+      return;
+    }
+    const cov=apiCoverage;
+    const covPct=(cov.coverage*100).toFixed(1);
+    const totalCases=cases.length;
+    let html='';
+
+    // 覆盖率概览卡片
+    const r2=32, circ2=2*Math.PI*r2;
+    const covColor=cov.coverage>=0.8?'#07C160':cov.coverage>=0.5?'#fa8c16':'#f5222d';
+    html+=`<div style="display:flex;align-items:center;gap:24px;margin-bottom:24px;padding:16px 20px;background:#fafafa;border-radius:10px;border:1px solid #e5e5e5">
+      <div style="position:relative;width:80px;height:80px;flex-shrink:0">
+        <svg width="80" height="80" viewBox="0 0 80 80" style="transform:rotate(-90deg)">
+          <circle cx="40" cy="40" r="${r2}" fill="none" stroke="#e5e5e5" stroke-width="6"/>
+          <circle cx="40" cy="40" r="${r2}" fill="none" stroke="${covColor}" stroke-width="6"
+            stroke-dasharray="${circ2.toFixed(1)}" stroke-dashoffset="${((1-cov.coverage)*circ2).toFixed(1)}"
+            stroke-linecap="round"/>
+        </svg>
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center">
+          <div style="font-size:18px;font-weight:700;color:${covColor}">${covPct}%</div>
+        </div>
+      </div>
+      <div style="flex:1">
+        <div style="font-size:15px;font-weight:600;color:#333;margin-bottom:6px">接口覆盖率</div>
+        <div style="font-size:13px;color:#666;line-height:1.8">
+          API 全集 <b>${cov.total_apis}</b> 个，已覆盖 <b style="color:${covColor}">${cov.covered_apis}</b> 个，未覆盖 <b>${cov.uncovered.length}</b> 个<br>
+          评测轨迹共 <b>${cov.total_calls}</b> 次工具调用（跨 ${totalCases} 条用例）
+        </div>
+      </div>
+    </div>`;
+
+    // 工具调用统计（合并覆盖 + 性能）
+    const tools=Object.entries(cov.tools).map(([name,v])=>({name,...v})).sort((a,b)=>b.calls-a.calls);
+    const perfMap=toolSizeStats&&Object.keys(toolSizeStats).length
+      ?Object.fromEntries(Object.entries(toolSizeStats).filter(([k])=>k!=='_largest'))
+      :{};
+    const sizeColor=v=>v>50000?'#f5222d':v>20000?'#fa8c16':'#333';
+    const msColor=v=>v>5000?'#f5222d':v>2000?'#fa8c16':'#333';
+    const fmtMs=v=>v==null?'-':v;
+    if(tools.length){
+      html+=`<div class="perf-section"><h3>本次评测覆盖的接口详情</h3><table class="perf-table"><thead><tr><th>接口名</th><th class="num">调用次数</th><th class="num">覆盖用例</th><th class="num">占比</th><th class="num">数据大小<br><small style="font-weight:normal;opacity:.7">最大 / 均值</small></th><th class="num">耗时(ms)<br><small style="font-weight:normal;opacity:.7">最大 / 均值</small></th></tr></thead><tbody>
+        ${tools.map(t=>{
+          const inAll=cov.total_apis>0&&![...cov.uncovered].includes(t.name);
+          const nameStyle=inAll?'':'color:#999;';
+          const perf=perfMap[t.name];
+          const sizeCell=perf?`<span style="color:${sizeColor(perf.max_bytes||0)}"><b>${fmtNum(perf.max_bytes)}</b></span> / ${fmtNum(perf.avg_bytes)}`:'-';
+          const msCell=perf?`<span style="color:${msColor(perf.max_ms||0)}"><b>${fmtMs(perf.max_ms)}</b></span> / ${fmtMs(perf.avg_ms)}`:'-';
+          return `<tr><td><b style="${nameStyle}">${h(t.name)}</b>${inAll?'':' <span style="font-size:10px;color:#bbb">(非API全集)</span>'}</td><td class="num"><b>${t.calls}</b></td><td class="num">${t.case_count}/${totalCases}</td><td class="num">${t.pct}%</td><td class="num">${sizeCell}</td><td class="num">${msCell}</td></tr>`;
+        }).join('')}
+      </tbody></table></div>`;
+    }
+
+    // 未覆盖接口列表
+    if(cov.uncovered.length){
+      html+=`<div class="perf-section"><h3>本次评测未覆盖到的接口（${cov.uncovered.length}）</h3>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;padding:4px 0">
+          ${cov.uncovered.map(n=>`<span style="display:inline-block;padding:4px 10px;background:#fff1f0;color:#cf1322;border-radius:4px;font-size:12px;border:1px solid #ffa39e">${h(n)}</span>`).join('')}
+        </div>
+      </div>`;
+    }
+
+    el.innerHTML=html;
+  }
+
+  // ── 渲染 Case 列表（左侧栏）──
+  function renderCaseList(){
+    document.getElementById('skillNameLabel').textContent=parseSkillName();
+  renderMiniappInfo();
+  renderRunSkillsInfo();
+    const list=document.getElementById('caseList');
+    const sortedIndices=sortedCaseIndices();
+
+    // 渲染**所有** case（含失败/未完成），编号一律用 c.idx —— 与任务侧 case 编号永远对齐。
+    // 失败/未完成 case 标 .incomplete（灰色），但仍可点击查看已采集的部分数据；
+    // .fail 仅用于"完成评测但有缺陷"的红橙警示，与"流程未跑完"语义不同。
+    list.innerHTML=sortedIndices.map(i=>{
+      const c=cases[i];
+      const isVisible=caseIsVisible(c);
+      const failedCount=isVisible?caseFailedCount(c):0;
+      const hasIssue=failedCount>0;
+      const cls=isVisible?(hasIssue?' fail':''):' incomplete';
+      const title=c.gen_trajectory?.brief_title||c.gen_intent?.brief_title||'';
+      const expandTag=caseHasExpand(c)?'<span class="tag-expand">负例-边界测试</span>':'';
+      const rateHtml=!isVisible
+        ?`<span class="rate" title="该 case 流程未完整跑完">⚠ 未完成</span>`
+        :hasIssue
+          ?`<span class="rate">✗ ${failedCount}</span>`
+          :`<span class="rate">✓</span>`;
+      return `<div class="case-item${cls}${i===currentIdx?' active':''}" data-idx="${i}">
+        <div class="left">
+          <span class="dot"></span>
+          <span class="label">Case ${c.idx}${title?' · '+h(title):''}${expandTag}</span>
+        </div>
+        <div class="right">
+          ${rateHtml}
+        </div>
+      </div>`;
+    }).join('');
+
+    list.addEventListener('click',e=>{
+      const el=e.target.closest('.case-item');
+      if(!el)return;
+      const i=Number(el.dataset.idx);
+      // .active toggle 与右侧渲染由 showCaseDetail → navigateToCase → renderForCurrentHash 统一处理。
+      showCaseDetail(i);
+    });
+  }
+
+  // ── 渲染用例详情（右侧，与任务总览互斥）──
+  function renderCaseDetail(){
+    const c=cases[currentIdx];
+    const evalResult=c.eval?.eval_result||{};
+    const attr=c.attribution?.attribution||{};
+    const trajectory=c.gen_trajectory?.trajectory||[];
+    const checklist=c.gen_checklist?.checklist||[];
+    // 仅展示过滤后的 checklist（截断 L4/L2 之后）
+    const items=caseVisibleEvalItems(c);
+    const attrItems=getVisibleAttrItems(c);
+    const failedChecks=caseFailedChecks(c);
+    const totalChecks=caseTotalChecks(c);
+    const failedCount=caseFailedCount(c);
+    const l3Items=[];  // L4 不再展示
+    const snapshotPrefix=buildSnapshotPrefix(c.idx);
+
+    // 构建 evidence_indices -> 失败checklist 的映射
+    const failedMerged=failedChecks.map(fc=>{
+      const ck=checklist.find(c=>(typeof c.index==='number'?c.index:(checklist.indexOf(c)+1))===fc.step_index)||{};
+      return {...fc, evidence:ck.evidence||''};
+    });
+    // evidence_indices -> 失败 check 列表映射（挂在最后一个 evidence index 上）
+    const trajIdxToIssues=new Map();
+    failedMerged.forEach(fc=>{
+      const indices=fc.evidence_indices||[];
+      if(indices.length){
+        const lastIdx=indices[indices.length-1];
+        if(!trajIdxToIssues.has(lastIdx))trajIdxToIssues.set(lastIdx,[]);
+        trajIdxToIssues.get(lastIdx).push(fc);
+      }
+    });
+    // step_index -> attribution 映射
+    const stepToAttr=new Map();
+    attrItems.forEach(ai=>{stepToAttr.set(ai.step_index,ai)});
+    // attribution evidence_indices -> attribution item 映射（挂在最后一个 evidence index 上）
+    const trajIdxToAttr=new Map();
+    attrItems.forEach(ai=>{
+      const indices=ai.evidence_indices||[];
+      if(indices.length){
+        const lastIdx=indices[indices.length-1];
+        if(!trajIdxToAttr.has(lastIdx))trajIdxToAttr.set(lastIdx,[]);
+        trajIdxToAttr.get(lastIdx).push(ai);
+      }
+    });
+    // L3 evidence_indices -> 轨迹索引映射（挂在最后一个 evidence index 上）
+    const trajIdxToL3=new Map();
+    l3Items.forEach(ai=>{
+      const indices=ai.evidence_indices||[];
+      if(indices.length){
+        const lastIdx=indices[indices.length-1];
+        if(!trajIdxToL3.has(lastIdx))trajIdxToL3.set(lastIdx,[]);
+        trajIdxToL3.get(lastIdx).push(ai);
+      }
+    });
+
+    // 详情区编号一律用 c.idx —— 与任务侧 / 左侧列表 / hash (#case-N) 三处对齐
+    const caseTitle=c.gen_trajectory?.brief_title||c.gen_intent?.brief_title||'';
+    const expandTagDetail=caseHasExpand(c)?'<span class="tag-expand">负例-边界测试</span>':'';
+    // 不完整 case 在标题区用文字标记，让用户立即知道为什么没有评分/归因
+    const incompleteTag=!caseIsVisible(c)
+      ?'<span class="tag-expand" style="background:#f0f0f0;color:#8c8c8c;border-color:#d9d9d9">⚠ 未完成</span>'
+      :'';
+
+    let html=`
+      <div class="case-detail-header">
+        <div style="display:flex;align-items:center;gap:12px">
+          <button class="back-btn" id="backToOverview">← 返回总览</button>
+          <h2>Case ${c.idx}${caseTitle?' · '+h(caseTitle):''}${expandTagDetail}${incompleteTag}</h2>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px">
+          ${(()=>{
+            const dist=c.tool_calls_by_skill;
+            if(!dist||!dist.total) return '';
+            const skills=Array.isArray(dist.unique_skills)?dist.unique_skills:[];
+            const parts=Object.entries(dist.counts||{}).filter(([k])=>k!=='__unknown__').map(([k,v])=>`${h(k)} ${v}`).join(' · ');
+            const tip=parts||'无';
+            return `<span style="padding:3px 10px;border-radius:12px;background:#f0f5ff;color:#2f54eb;border:1px solid #adc6ff" title="${h(tip)}">🔧 ${dist.total} 次 · ${skills.length} 个 skill</span>`;
+          })()}
+          <span style="padding:3px 10px;border-radius:12px;font-weight:600;${failedCount>0?'background:#fff2e8;color:#fa541c;border:1px solid #ffbb96':'background:#f6ffed;color:#52c41a;border:1px solid #b7eb8f'}">
+            ${failedCount>0?`✗ checklist 错误 ${failedCount}/${totalChecks}`:`✓ checklist 全通过（${totalChecks}）`}
+          </span>
+        </div>
+      </div>
+      <div class="case-detail-body">
+        <div class="case-col-eval">`;
+
+    // Debug 模式：呈现 intent 信息
+    if(c.view?.debug){
+      const intentStr=c.gen_intent?.intent||'';
+      const isExpand=caseHasExpand(c);
+      const expandEnts=isExpand?caseExpandedEntities(c):[];
+      if(intentStr){
+        html+=`<div style="margin-bottom:12px;padding:12px 16px;background:#e6f7ff;border:1px solid #91d5ff;border-radius:8px">
+          <h4 style="font-size:13px;font-weight:600;color:#1890ff;margin:0 0 6px 0">🔍 Intent（Debug）</h4>
+          <div style="font-size:12px;color:#333;line-height:1.6;white-space:pre-wrap">${h(intentStr)}</div>`;
+        if(isExpand&&expandEnts.length){
+          html+=`<div style="margin-top:8px;padding-top:8px;border-top:1px dashed #91d5ff">
+            <span style="font-size:12px;font-weight:600;color:#fa541c">⚠️ 边界实体：</span>
+            <span style="font-size:12px;color:#fa541c">${expandEnts.map(e=>'「'+h(e.identifier||'?')+'」('+h(e.type||'?')+')').join('、')}</span>
+          </div>`;
+        }
+        html+=`</div>`;
+      }
+    }
+
+    // Skill 缺陷
+    if(attrItems.length){
+      html+=`<div class="attr-summary-bar"><h4>⚠️ Skill 缺陷（${attrItems.length}）</h4><div class="attr-summary-list">`;
+      attrItems.forEach((ai,aiIdx)=>{
+        const stepIdx=ai.step_index;
+        const titleText=h(ai.brief||ai.description||'');
+        const titleHtml=stepIdx!=null
+          ?`<a href="javascript:void(0)" onclick="var el=document.getElementById('attr-step-${stepIdx}');if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.style.boxShadow='0 0 0 3px #ff9500';el.style.borderColor='#ff9500';setTimeout(()=>{el.style.boxShadow='';el.style.borderColor='#f0f0f0'},2500)}" style="font-size:13px;font-weight:600;color:#1890ff;text-decoration:none;cursor:pointer;border-bottom:1px dashed #1890ff">${titleText} ↗</a>`
+          :`<span style="font-size:13px;font-weight:600;color:#333">${titleText}</span>`;
+        html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#fff;border:1px solid #f0f0f0;border-radius:8px;margin-bottom:8px">
+          <span class="attr-badge ${h(ai.level)}" data-tip="${h(levelDesc(ai.level))}" style="cursor:help">${levelName(ai.level)}</span>
+          ${titleHtml}
+        </div>`;
+      });
+      html+=`</div></div>`;
+    }
+
+    if(!attrItems.length){
+      html+=`<div style="margin-bottom:16px;padding:12px 16px;background:#f6ffed;border:1px solid #b7eb8f;border-radius:8px">
+        <h4 style="font-size:13px;font-weight:600;color:#52c41a;margin:0">✅ Skill 缺陷（0）</h4>
+      </div>`;
+    }
+
+    // Checklist 列表（过滤后）
+    html+=renderChecklistSection(c, items, checklist);
+
+    // 关闭左列，插入拖动分割条，打开右列
+    html+=`</div><div class="split-handle" id="splitHandle"></div><div class="case-col-traj">`;
+
+    // 轨迹主体（内联问题标注）
+    // 记录已渲染过的 step_index，避免同一个 checklist 在多个轨迹位置重复呈现
+    const renderedStepIndices=new Set();
+    if(!trajectory.length){
+      html+='<div class="empty">暂无对话轨迹</div>';
+    } else {
+      html+='<div class="conv-list">';
+      const rendered=new Set();
+      // 工具调用质量判定（callStatus）查找表：key=`${msgIdx}:${tcIdx}` → { status, reason }
+      const callStatusByKey=new Map();
+      (c.view?.call_statuses||[]).forEach(cs=>{
+        callStatusByKey.set(`${cs.msgIdx}:${cs.tcIdx}`,{status:cs.status,reason:cs.reason||''});
+      });
+      const renderCallStatusBadge=(mi,tcIdx)=>{
+        const cs=callStatusByKey.get(`${mi}:${tcIdx}`);
+        if(!cs) return ''; // 旧 trajectory 没有 callStatus，不显示徽章
+        if(cs.status==='ok'){
+          return `<span class="conv-call-ok-badge" title="工具调用：成功">工具调用：成功</span>`;
+        }
+        // 折叠所有空白（含 \n / \r / \t）为单个空格，避免 title 渲染出多行
+        const reason=h(String(cs.reason||cs.status).replace(/\s+/g,' ').trim());
+        return `<span class="conv-call-fail-badge" title="${reason}">工具调用：失败</span>`;
+      };
+      trajectory.forEach((msg,mi)=>{
+        if(rendered.has(mi)) return;
+        const role=msg.role||'unknown';
+
+        // 合并 tool_calls(assistant) + tool response 为一个 box
+        if(msg.tool_calls&&msg.tool_calls.length){
+          // assistant 消息带 tool_calls，找后续对应的 tool 返回
+          let body='';
+          const mergedIndices=[]; // 被合并的 tool response 索引
+          if(msg.content) body+=`<div class="conv-text">${h(msg.content)}</div>`;
+          msg.tool_calls.forEach((tc,tcIdx)=>{
+            const fn=tc.function||tc;
+            const callId=tc.id||'';
+            // 查找对应 tool response
+            let toolResp=null;
+            let toolRespIdx=null;
+            // 严格 id 匹配窗口：±10 步（与 call_status.js findResponseForCall 一致，保证徽章与卡片配对相同）
+            for(let j=mi+1;j<trajectory.length&&j<=mi+10;j++){
+              if(trajectory[j].role==='tool'&&(trajectory[j].tool_call_id===callId||(!callId&&trajectory[j].role==='tool'))){
+                toolResp=trajectory[j];
+                toolRespIdx=j;
+                rendered.add(j);
+                break;
+              }
+            }
+            // 没按 id 匹配到就按顺序取下一个 tool
+            if(!toolResp){
+              for(let j=mi+1;j<trajectory.length;j++){
+                if(trajectory[j].role==='tool'&&!rendered.has(j)){
+                  toolResp=trajectory[j];
+                  toolRespIdx=j;
+                  rendered.add(j);
+                  break;
+                }
+              }
+            }
+            if(toolRespIdx!=null) mergedIndices.push(toolRespIdx);
+            const args=fn.arguments||'';
+            const respContent=toolResp?(typeof toolResp.content==='string'?toolResp.content:JSON.stringify(toolResp.content,null,2)):'';
+            const respFull=(!isEmptyStructuredContent(toolResp?.structuredContent))?(typeof toolResp.structuredContent==='string'?toolResp.structuredContent:JSON.stringify(toolResp.structuredContent,null,2)):'';
+            const argsP=jsonPretty(args);
+            const respP=jsonPretty(respContent);
+            const isErr=toolResp?.isError;
+            const tsStr=fmtTs(msg.ts||toolResp?.ts);
+            const detailData=JSON.stringify({name:fn.name||'',reqTime:fmtTs(msg.ts),args:argsP||args,respTime:fmtTs(toolResp?.ts),response:respContent,structuredContent:respFull}).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;').replace(/"/g,'&quot;');
+            body+=`<div class="conv-tool-box${isErr?' tool-error':''}">
+              <div class="conv-tool-box-header">⚡ 调用接口 <strong>${h(fn.name||'')}</strong><button class="conv-tool-def-btn" data-tool-name="${h(fn.name||'')}">📖 定义</button><button class="conv-tool-detail-btn" data-tool-detail="${detailData}">📋 详情</button>${renderCallStatusBadge(mi,tcIdx)}${isErr?'<span class="conv-tool-error-badge">返回结果: Error</span>':'<span class="conv-tool-success-badge">返回结果: Success</span>'}${tsStr?`<span class="conv-tool-time">🕐 ${tsStr}</span>`:''}</div>
+              ${renderToolSection('📥 输入参数',argsP)}
+              ${renderToolSection('📤 输出参数',respP)}
+              ${(toolResp?.snapshot_data_url||toolResp?.snapshot_path)?`<img class="conv-snapshot" src="${h(toolResp.snapshot_data_url||snapshotPrefix+toolResp.snapshot_path)}" alt="快照" onerror="this.outerHTML='<span class=&quot;conv-snapshot-fallback&quot;>截图缺失</span>'">`:''}
+              ${toolResp?.element_tree?`<details class="conv-etree"><summary>元素树</summary><pre>${h(toolResp.element_tree)}</pre></details>`:''}
+            </div>`;
+          });
+
+          // 渲染归因：本索引 + 被合并的 tool response 索引
+          let inlineAttr=renderInlineChecklist(mi,trajIdxToIssues,trajIdxToL3,trajIdxToAttr,stepToAttr,checklist,items,l3Items,renderedStepIndices);
+          mergedIndices.forEach(idx=>{
+            inlineAttr+=renderInlineChecklist(idx,trajIdxToIssues,trajIdxToL3,trajIdxToAttr,stepToAttr,checklist,items,l3Items,renderedStepIndices);
+          });
+          // fallback: 如果归因挂在紧跟的下一条(如 assistant 回复 #mi+tool_calls.length+1)但该条还未渲染
+          const nextIdx=mi+msg.tool_calls.length+1;
+          if(!inlineAttr && nextIdx<trajectory.length && !rendered.has(nextIdx)){
+            inlineAttr=renderInlineChecklist(nextIdx,trajIdxToIssues,trajIdxToL3,trajIdxToAttr,stepToAttr,checklist,items,l3Items,renderedStepIndices);
+          }
+
+          // 为被合并的 tool response 索引插入隐藏锚点，使跳转可定位
+          const mergedAnchors=mergedIndices.map(idx=>`<span id="traj-${idx}"></span>`).join('');
+          html+=`<div class="conv-item role-tool" id="traj-${mi}">
+            ${mergedAnchors}
+            <div class="conv-role tool">Tool Call <span style="color:#ccc;font-size:10px;font-weight:400">#${mi}</span></div>
+            ${body}
+            ${inlineAttr}
+          </div>`;
+          return;
+        }
+
+        // 独立的 tool response（未被合并的情况）
+        if(role==='tool'){
+          const isErr=msg.isError;
+          let body='';
+          if(isErr) body+=`<div class="conv-tool-error-badge" style="margin-bottom:6px">返回结果: Error</div>`;
+          else body+=`<div class="conv-tool-success-badge" style="margin-bottom:6px">返回结果: Success</div>`;
+          if(!isEmptyStructuredContent(msg.structuredContent)){
+            const smry=typeof msg.content==='string'?msg.content:JSON.stringify(msg.content,null,2);
+            const full=typeof msg.structuredContent==='string'?msg.structuredContent:JSON.stringify(msg.structuredContent,null,2);
+            body+=`<div class="conv-text">${h(smry)}</div>
+              <details class="tool-full-output"><summary>查看完整输出</summary><pre class="tool-raw">${h(full)}</pre></details>`;
+          } else {
+            const content=typeof msg.content==='string'?msg.content:JSON.stringify(msg.content,null,2);
+            body+=`<div class="conv-text">${renderContent(content)}</div>`;
+          }
+          if(msg.snapshot_data_url||msg.snapshot_path){
+            const src=msg.snapshot_data_url||snapshotPrefix+msg.snapshot_path;
+            body+=`<img class="conv-snapshot" src="${h(src)}" alt="快照" onerror="this.outerHTML='<span class=&quot;conv-snapshot-fallback&quot;>截图缺失</span>'">`;
+          }
+          if(msg.element_tree){
+            body+=`<details class="conv-etree"><summary>元素树</summary><pre>${h(msg.element_tree)}</pre></details>`;
+          }
+          html+=`<div class="conv-item role-tool${isErr?' tool-error-item':''}" id="traj-${mi}" ${isErr?'style="border-left:3px solid #ff4d4f"':''}>
+            <div class="conv-role tool">tool${msg.tool_call_id?' (response)':''} <span style="color:#ccc;font-size:10px;font-weight:400">#${mi}</span></div>
+            ${body}
+            ${renderInlineChecklist(mi,trajIdxToIssues,trajIdxToL3,trajIdxToAttr,stepToAttr,checklist,items,l3Items,renderedStepIndices)}
+          </div>`;
+          return;
+        }
+
+        // 普通 assistant 消息（无 tool_calls）
+        if(role==='assistant'){
+          const content=typeof msg.content==='string'?msg.content:JSON.stringify(msg.content,null,2);
+          // partial 占位：CLI 内层超时但已有 peek 事件，单独以橙色警告样式呈现
+          if(msg.partial){
+            const m=msg.partial_meta||{};
+            const reason=m.reason||'timeout';
+            const tm=m.timeout_ms?` · ${m.timeout_ms}ms`:'';
+            const stat=`已收集事件: tool=${m.peek_tool_count||0} · resp=${m.peek_response_chars||0}字 · raw=${m.peek_raw_events||0}`;
+            html+=`<div class="conv-item role-assistant role-partial" id="traj-${mi}">
+              <div class="conv-role assistant" style="color:#fa8c16">⚠️ Agent 超时(partial) <span style="color:#ccc;font-size:10px;font-weight:400">#${mi}</span></div>
+              <div class="conv-text" style="color:#fa8c16">${h(reason)}${h(tm)}</div>
+              <div class="conv-text" style="color:#999;font-size:11px;margin-top:4px">${h(stat)}</div>
+              <div class="conv-text" style="color:#bfbfbf;font-size:11px;margin-top:2px">${h(content)}</div>
+              ${renderInlineChecklist(mi,trajIdxToIssues,trajIdxToL3,trajIdxToAttr,stepToAttr,checklist,items,l3Items,renderedStepIndices)}
+            </div>`;
+            return;
+          }
+          let body=`<div class="conv-text">${renderContent(content)}</div>`;
+
+          html+=`<div class="conv-item role-assistant" id="traj-${mi}">
+            <div class="conv-role assistant">Assistant <span style="color:#ccc;font-size:10px;font-weight:400">#${mi}</span></div>
+            ${body}
+            ${renderInlineChecklist(mi,trajIdxToIssues,trajIdxToL3,trajIdxToAttr,stepToAttr,checklist,items,l3Items,renderedStepIndices)}
+          </div>`;
+          return;
+        }
+
+        // user 消息
+        const content=typeof msg.content==='string'?msg.content:JSON.stringify(msg.content,null,2);
+        let body=`<div class="conv-text">${renderContent(content)}</div>`;
+        const avatarSvg=`<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-7 8-7s8 3 8 7"/></svg>`;
+        html+=`<div class="conv-item role-user" id="traj-${mi}">
+          <div class="conv-avatar">${avatarSvg}</div>
+          <div class="conv-body">
+            <div class="conv-role user">User <span style="color:#ccc;font-size:10px;font-weight:400">#${mi}</span></div>
+            ${body}
+          </div>
+        </div>`;
+      });
+      html+='</div>';
+    }
+
+    // 关闭右列和 body 容器
+    html+=`</div></div>`;
+
+    document.getElementById('caseDetail').innerHTML=html;
+
+    // 返回总览按钮
+    document.getElementById('backToOverview').addEventListener('click',()=>showOverview());
+
+    // ── 拖动分割条逻辑 ──
+    const splitHandle=document.getElementById('splitHandle');
+    if(splitHandle){
+      const body=splitHandle.parentElement;
+      const evalCol=body.querySelector('.case-col-eval');
+      let startX,startW;
+      const onMouseMove=(e)=>{
+        const dx=e.clientX-startX;
+        const newW=Math.min(Math.max(startW+dx,200),body.clientWidth*0.7);
+        evalCol.style.width=newW+'px';
+      };
+      const onMouseUp=()=>{
+        splitHandle.classList.remove('dragging');
+        document.removeEventListener('mousemove',onMouseMove);
+        document.removeEventListener('mouseup',onMouseUp);
+        document.body.style.cursor='';
+        document.body.style.userSelect='';
+      };
+      splitHandle.addEventListener('mousedown',(e)=>{
+        e.preventDefault();
+        startX=e.clientX;
+        startW=evalCol.offsetWidth;
+        splitHandle.classList.add('dragging');
+        document.body.style.cursor='col-resize';
+        document.body.style.userSelect='none';
+        document.addEventListener('mousemove',onMouseMove);
+        document.addEventListener('mouseup',onMouseUp);
+      });
+    }
+  }
+
+  function scoreTag(score,max){
+    if(score==null) return '<span class="score-tag">-</span>';
+    const cls=score>=max?'full':score>0?'half':'zero';
+    return `<span class="score-tag ${cls}">${score}/${max}</span>`;
+  }
+
+  // ── 左侧栏：小程序信息 + skill 接口列表 ──
+  function renderMiniappInfo(){
+    const box=document.getElementById('miniappInfo');
+    if(!box) return;
+    const project=D.project||{};
+    // 小程序名称：优先 project.miniapp_name → start.adapter_config.miniapp_name → project_name → 未知
+    const miniappName=project.miniapp_name||start.adapter_config?.miniapp_name||start.miniapp_name||project.project_name||start.project_name||'未知小程序';
+    const appId=project.appid||start.adapter_config?.appid||start.appid||'';
+    const skillPkgName=parseSkillName();
+    // 接口列表：从 start.api_docs 取真实 API 名（这才是用户视角下的 skill 能力，如 searchCity / getCurrentWeather）
+    const apiDocs=Array.isArray(start.api_docs)?start.api_docs:[];
+    const apis=apiDocs.map(a=>({
+      name:a.name||'',
+      desc:a.description||''
+    })).filter(a=>a.name);
+    const apisHtml=apis.length
+      ? apis.map(a=>`<div class="mi-skill-item" title="${h(a.desc||a.name)}">
+          <span class="mi-skill-dot"></span>
+          <span class="mi-skill-name">${h(a.name)}</span>
+        </div>`).join('')
+      : `<div class="mi-skill-item" style="color:#999"><span class="mi-skill-name">暂无接口信息</span></div>`;
+    box.innerHTML=`
+      <div class="mi-row">
+        <span class="mi-label">小程序：</span>
+        <span class="mi-val">${h(miniappName)}</span>
+      </div>
+      ${appId?`<div class="mi-row">
+        <span class="mi-label">AppID：</span>
+        <span class="mi-val mi-mono" title="${h(appId)}">${h(appId)}</span>
+      </div>`:''}
+      ${skillPkgName?``:''}
+      <div class="mi-skills">
+        <div class="mi-skills-title" onclick="this.nextElementSibling.classList.toggle('collapsed');this.querySelector('.mi-toggle').classList.toggle('collapsed')">
+          <span>本次评测 Skill（${apis.length}）</span>
+          <span class="mi-toggle collapsed">▼</span>
+        </div>
+        <div class="mi-skill-list collapsed">${apisHtml}</div>
+      </div>`;
+  }
+
+  // ── multi-skill run 总览：参与 skills / 排除 skills / 跨 skill case 数 ──
+  function renderRunSkillsInfo(){
+    const box=document.getElementById('runSkillsInfo');
+    if(!box) return;
+    const run=D.run||{};
+    const participating=Array.isArray(run.participating_skills)?run.participating_skills:[];
+    if(participating.length<=1) return; // 单 skill 不展示
+    const excluded=Array.isArray(run.excluded_skills)?run.excluded_skills:[];
+    const breakdown=run.skill_breakdown||{};
+    const perCalls=breakdown.per_skill_calls||{};
+    const callsHtml=participating.map(name=>{
+      const cnt=perCalls[name]||0;
+      return `<span class="mi-skill-item"><span class="mi-skill-dot"></span><span class="mi-skill-name">${h(name)}</span><span style="color:#666;font-size:11px">${cnt} 次</span></span>`;
+    }).join('');
+    const excludedHtml=excluded.length
+      ? `<div class="mi-row"><span class="mi-label">已剔除：</span><span class="mi-val" style="color:#fa541c">${excluded.map(h).join('、')}</span></div>`
+      : '';
+    const cross=breakdown.cross_skill_cases||0;
+    const total=breakdown.total_cases||0;
+    box.style.display='block';
+    box.innerHTML=`
+      <div class="mi-row"><span class="mi-label">参与 Skills：</span><span class="mi-val">${participating.length} 个</span></div>
+      <div class="mi-row"><span class="mi-label">跨 Skill 调用 case：</span><span class="mi-val">${cross}/${total}</span></div>
+      ${excludedHtml}
+      <div class="mi-skills">
+        <div class="mi-skills-title"><span>各 Skill 工具调用</span></div>
+        <div class="mi-skill-list" style="flex-direction:row;flex-wrap:wrap;gap:6px">${callsHtml}</div>
+      </div>`;
+  }
+
+  // ── 多 skill 切换 ──
+  function renderSkillSwitcher(){
+    const allSkills=Array.isArray(D.skills)?D.skills:[];
+    const topSummary=D.summary||{};
+    if(allSkills.length>1){
+      // 全小程序总览卡
+      const overallPct=pct(topSummary.overall_pass_rate||0);
+      const perSkillRate=topSummary.per_skill_pass_rate||{};
+      const perLines=Object.entries(perSkillRate)
+        .map(([name,rate])=>`<div>${h(name)}：<b>${pct(rate)}%</b></div>`).join('');
+      document.getElementById('overallCard').style.display='block';
+      document.getElementById('overallText').innerHTML=`
+        <div>整体通过率：<b style="color:#07C160">${overallPct}%</b>（${allSkills.length} 个 skill · ${topSummary.total_cases||0} 条用例）</div>
+        <div style="margin-top:4px;font-size:11px;color:#666">${perLines}</div>`;
+
+      const sel=document.getElementById('skillSelect');
+      sel.innerHTML=allSkills.map((s,i)=>`<option value="${i}">${h(s.name)}（${pct(s.summary?.avg_pass_rate||0)}%）</option>`).join('');
+      document.getElementById('skillSwitcher').style.display='block';
+      sel.addEventListener('change',()=>{
+        const s=allSkills[Number(sel.value)];
+        start=s.start||{};
+        review=s.skill_review?.skill_review||null;
+        cases=s.cases||[];
+        summary=s.summary||null;
+        toolSizeStats=s.explore_tool_size_stats||null;
+        apiCoverage=s.api_coverage||null;
+        currentSkillName=s.name||currentSkillName;
+        // 哨兵值：让随后的 showOverview → renderForCurrentHash 一定跑（cases 已替换，
+        // 即便 hash 与目标态都是"空"，仍需重新渲染 overview）。
+        currentIdx=-2;
+        renderCaseList();
+        showOverview();
+      });
+    }
+  }
+
+  // ── 启动 ──
+  renderSkillSwitcher();
+  renderCaseList();
+  // 直接按 URL hash 渲染初始视图：有 #case-N 就开 case，无则总览。
+  // 不再走"先 showOverview 再 applyHashFromUrl 修正"那套时序敏感的两步流程。
+  renderForCurrentHash();
+  window.addEventListener('hashchange', renderForCurrentHash);
+
+  // ── 全局 tooltip：用一个 fixed 元素替代 ::after，避免被 overflow:hidden 裁切 ──
+  (function initGlobalTip(){
+    let tip=document.getElementById('globalTip');
+    if(!tip){
+      tip=document.createElement('div');
+      tip.id='globalTip';
+      document.body.appendChild(tip);
+    }
+    function show(target){
+      const text=target.getAttribute('data-tip');
+      if(!text) return;
+      tip.textContent=text;
+      tip.classList.add('show');
+      // 先临时显示以测尺寸
+      tip.style.left='0px';tip.style.top='0px';
+      const tipRect=tip.getBoundingClientRect();
+      const r=target.getBoundingClientRect();
+      const vw=window.innerWidth, vh=window.innerHeight;
+      let left=r.left + r.width/2 - tipRect.width/2;
+      left=Math.max(8, Math.min(left, vw - tipRect.width - 8));
+      let top=r.top - tipRect.height - 10;
+      let placement='top';
+      if(top < 8){ top=r.bottom + 10; placement='bottom'; }
+      tip.style.left=left+'px';
+      tip.style.top=top+'px';
+      // 箭头水平位置（相对 tooltip 左边）
+      const arrowX=Math.max(10, Math.min(r.left + r.width/2 - left - 6, tipRect.width - 16));
+      tip.style.setProperty('--arrow-x', arrowX+'px');
+      tip.classList.remove('tip-top','tip-bottom');
+      tip.classList.add(placement==='top'?'tip-top':'tip-bottom');
+    }
+    function hide(){ tip.classList.remove('show'); }
+    document.addEventListener('mouseover',e=>{
+      const el=e.target.closest('[data-tip]');
+      if(el) show(el);
+    });
+    document.addEventListener('mouseout',e=>{
+      const el=e.target.closest('[data-tip]');
+      if(el) hide();
+    });
+    window.addEventListener('scroll',hide,true);
+    window.addEventListener('resize',hide);
+  })();
+
+})();
+</script>
+
+<!-- 工具定义 Modal -->
+<div class="tool-def-modal-overlay" id="toolDefOverlay" onclick="if(event.target===this)closeToolDef()">
+  <div class="tool-def-modal">
+    <div class="tool-def-modal-header">
+      <h3 id="toolDefTitle">接口定义</h3>
+      <button class="tool-def-modal-close" onclick="closeToolDef()">&times;</button>
+    </div>
+    <div class="tool-def-modal-body" id="toolDefBody"></div>
+  </div>
+</div>
+
+<script>
+// ── 工具定义弹窗逻辑 ──
+(function(){
+  // 构建 toolName → api_doc 索引
+  var D=window.__EVAL_DATA__;
+  var apiDocs=(D&&D.start&&Array.isArray(D.start.api_docs))?D.start.api_docs:[];
+  var apiDocMap={};
+  apiDocs.forEach(function(doc){if(doc&&doc.name)apiDocMap[doc.name]=doc;});
+
+  // 构建 skillName → skill_description 索引
+  //   - 新 schema：start.skills[] 每项含 { name, skill_description }
+  //   - 老 schema：仅顶层 start.skill_description（单 skill 模式）
+  // 优先使用 skills[] 精准匹配，兜底用顶层 description
+  var skillDescMap={};
+  var startSkills=(D&&D.start&&Array.isArray(D.start.skills))?D.start.skills:[];
+  startSkills.forEach(function(s){
+    if(s&&s.name&&typeof s.skill_description==='string'&&s.skill_description.trim()){
+      skillDescMap[s.name]=s.skill_description;
+    }
+  });
+  var fallbackSkillDesc=(D&&D.start&&typeof D.start.skill_description==='string')?D.start.skill_description:'';
+
+  function esc(s){if(!s)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+  /**
+   * 解析该工具所属 skill 的描述 markdown
+   *   - 优先 skills[] 中按 doc.skill 命中
+   *   - 退化到顶层 skill_description（老 schema 单 skill 时即为该 skill 的完整描述）
+   */
+  function getSkillDescriptionFor(doc){
+    if(doc&&doc.skill&&Object.prototype.hasOwnProperty.call(skillDescMap,doc.skill)){
+      return skillDescMap[doc.skill];
+    }
+    return fallbackSkillDesc||'';
+  }
+
+  window.showToolDef=function(toolName){
+    var doc=apiDocMap[toolName];
+    var overlay=document.getElementById('toolDefOverlay');
+    var title=document.getElementById('toolDefTitle');
+    var body=document.getElementById('toolDefBody');
+    if(!doc){
+      title.innerHTML='接口定义 — <strong>'+esc(toolName)+'</strong>';
+      body.innerHTML='<p style="color:#999;font-size:13px">未找到该接口的定义信息（可能为内置工具或未注册的接口）。</p>';
+      overlay.classList.add('active');
+      return;
+    }
+    title.innerHTML=esc(doc.name)+(doc.skill?'<span class="tool-def-skill-badge">'+esc(doc.skill)+'</span>':'');
+    var html='';
+    html+='<div class="def-section"><div class="def-section-title">Description</div><div class="def-desc">'+esc(doc.description||'(无描述)')+'</div></div>';
+    if(doc.parameters){
+      html+='<div class="def-section"><div class="def-section-title">Parameters</div><pre>'+esc(JSON.stringify(doc.parameters,null,2))+'</pre></div>';
+    }
+    if(doc.output_schema){
+      html+='<div class="def-section"><div class="def-section-title">Output Schema</div><pre>'+esc(JSON.stringify(doc.output_schema,null,2))+'</pre></div>';
+    }
+    // Skill 说明：展示该工具所属 skill 的能力描述（markdown 原文，以等宽 pre 渲染保证缩进/列表对齐）
+    var skillMd=getSkillDescriptionFor(doc);
+    if(skillMd&&skillMd.trim()){
+      var skillLabel=doc.skill?('Skill 说明 · '+esc(doc.skill)):'Skill 说明';
+      html+='<div class="def-section"><div class="def-section-title">'+skillLabel+'</div><pre class="def-skill-md">'+esc(skillMd)+'</pre></div>';
+    }
+    body.innerHTML=html;
+    overlay.classList.add('active');
+  };
+
+  window.closeToolDef=function(){
+    document.getElementById('toolDefOverlay').classList.remove('active');
+  };
+
+  // 事件代理：点击任意 .conv-tool-def-btn 弹出对应工具定义
+  document.addEventListener('click',function(e){
+    var btn=e.target.closest&&e.target.closest('.conv-tool-def-btn');
+    if(btn){
+      e.preventDefault();
+      e.stopPropagation();
+      showToolDef(btn.getAttribute('data-tool-name')||'');
+    }
+  });
+
+  // ESC 关闭
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')closeToolDef();});
+})();
+</script>
+
+<div class="tool-detail-modal-overlay" id="toolDetailOverlay" onclick="if(event.target===this)closeToolDetail()">
+  <div class="tool-def-modal">
+    <div class="tool-def-modal-header" style="background:#e6f7ff">
+      <h3 id="toolDetailTitle">调用详情</h3>
+      <button class="tool-def-modal-close" onclick="closeToolDetail()">&times;</button>
+    </div>
+    <div class="tool-def-modal-body" id="toolDetailBody"></div>
+  </div>
+</div>
+
+<script>
+// ── 工具调用详情弹窗逻辑 ──
+(function(){
+  function esc(s){if(!s)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+  window.showToolDetail=function(data){
+    var overlay=document.getElementById('toolDetailOverlay');
+    var title=document.getElementById('toolDetailTitle');
+    var body=document.getElementById('toolDetailBody');
+    title.innerHTML='调用详情 — <strong>'+esc(data.name)+'</strong>';
+    var html='';
+    // 请求
+    html+='<div class="def-section"><div class="def-section-title">📥 请求'+(data.reqTime?' · '+esc(data.reqTime):'')+'</div><pre>'+esc(data.args||'(无参数)')+'</pre></div>';
+    // 响应
+    html+='<div class="def-section"><div class="def-section-title">📤 响应'+(data.respTime?' · '+esc(data.respTime):'')+'</div><pre>'+esc(data.response||'(无响应)')+'</pre></div>';
+    // structuredContent（非空时）
+    if(data.structuredContent){
+      html+='<div class="def-section"><div class="def-section-title">🗂 Structured Content</div><pre>'+esc(data.structuredContent)+'</pre></div>';
+    }
+    body.innerHTML=html;
+    overlay.classList.add('active');
+  };
+
+  window.closeToolDetail=function(){
+    document.getElementById('toolDetailOverlay').classList.remove('active');
+  };
+
+  // 事件代理：点击任意 .conv-tool-detail-btn 弹出对应调用详情
+  document.addEventListener('click',function(e){
+    var btn=e.target.closest&&e.target.closest('.conv-tool-detail-btn');
+    if(btn){
+      e.preventDefault();
+      e.stopPropagation();
+      try{
+        var data=JSON.parse(btn.getAttribute('data-tool-detail')||'{}');
+        showToolDetail(data);
+      }catch(err){}
+    }
+  });
+
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')closeToolDetail();});
+})();
+</script>
+</body>
+</html>

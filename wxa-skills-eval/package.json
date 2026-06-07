@@ -1,0 +1,12 @@
+{
+  "name": "wxa-skills-eval",
+  "version": "0.1.17",
+  "description": "小程序 Skill 评测工具",
+  "private": true,
+  "bin": {
+    "wxa-skills-eval": "./cli/index.js"
+  },
+  "engines": {
+    "node": ">=18.17"
+  }
+}
