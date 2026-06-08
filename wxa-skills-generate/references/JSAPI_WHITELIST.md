@@ -96,6 +96,8 @@
 
 ### Taro 特有不可迁移（仅 Taro 项目）
 
+详见 `wxa-skills-generate-taro/references/TARO_ANALYSIS_PATTERNS.md` §4.8。
+
 | 不可用 | 替代策略 |
 |-------|---------|
 | `useRouter()` / `getCurrentInstance().router.params` | 改用 `inputSchema` 显式声明 query 参数 |

@@ -29,7 +29,7 @@
 ```js
 // 形态 1：单 text（无对应接口时）
 wx.modelContext.getContext(this).sendFollowUpMessage({
-  content: [{ type: 'text', text: '查看更多' }],
+  content: [{ type: 'text', text: '换一批推荐' }],
 })
 
 // 形态 2：text + api/call 组合（推荐，有对应接口时）
@@ -45,7 +45,7 @@ wx.modelContext.getContext(this).sendFollowUpMessage({
 
 ### 硬性规则（生成组件时必须遵守）
 
-1. **每个可交互元素都绑 `bindtap` + `hover-class`**。列表 item / 按钮 / "查看更多"都不能是纯展示。
+1. **每个可交互元素都绑 `bindtap` + `hover-class`**。列表 item / 按钮 / "查看全部"都不能是纯展示。
 2. **tap handler 优先用形态 2**，无对应接口时才用形态 1。`arguments` 值从 `e.currentTarget.dataset` / `this.data` 取，不用占位值。
 3. **`text` 是用户视角的简短中文**（≤ 12 字，如"选择拿铁"），从 dataset 可读字段拼出，不是 args 序列化。
 4. **每次上行 `api/call` 前打一行 console.info**：`[ai-mode] {componentName} send api/call name=<name> args=<JSON>`。
@@ -60,7 +60,7 @@ wx.modelContext.getContext(this).sendFollowUpMessage({
 |---|---|---|
 | 列表项 → 查看详情 | `searchItemDetail` / `searchOrderDetail` 这类详情接口 | 被点对象的 id（如 `{ itemId: 1528954 }` / `{ orderId: 12345 }`） |
 | 列表项 → 继续下一步业务 | 依赖图下游接口（如选商家后 → `searchSchedule`） | 已选对象的 id + 当前组件上下文必需入参（如 `{ storeId, itemId, date, time }`） |
-| "查看更多" / "换一换" | 同当前展示能力的检索接口（如 `searchItems` / `searchOrders`） | 带上一轮 query；明确是"换一批"时可附加 `{ refresh: true }`，仅当接口 inputSchema 有该字段 |
+| "换一换" / "换一批" | 同当前展示能力的检索接口（如 `searchItems`） | 带上一轮 query + `{     refresh: true }`（仅当接口 inputSchema 有该字段）。**注意**："查看更多/全部"不走上行 `api/call`，走半屏 `viewCtx.openDetailPage()`（见 §7.3） |
 | 详情页主 CTA（购票 / 加购 / 预约 / 支付）| 触发业务动作的下一跳接口（如 `bookingItem` / `createOrder`）| 当前详情对象的关键标识（seqNo / orderId / sessionId / quantity / gradeId 等） |
 | 多选/枚举型选择（座位、时段、规格）| 与"选择结果"挂钩的下一跳接口（如选完座 → `order`）| 所选实体集合（如 `{ seqNo, seats: [{ row, column }, ...] }`） |
 | 状态结果页引导继续 | 紧邻的状态收束接口（如支付完成后看订单 → `listMyOrders`，若存在）| 过渡所需的最小入参，允许空对象 `{}` |
@@ -137,9 +137,9 @@ await wx.modelContext.getViewContext(this).expirePreviousCards({
 
 A/B 二选一，不要同时调；调用前后建议各打一行 `[ai-mode] {componentName} expire... done|fail` 日志。
 
-### 半屏页面跳转（按需，非强制）
+### 半屏页面跳转（溢出时必须生成，其他按需）
 
-> 默认不生成。仅当业务确有"详情 / 用户补充信息"语义时挂上。**入口仅在原子组件 `methods` 内**（原子接口里没有 `this`，不可调）。完整 API、上行消息、半屏内禁用清单见 `references/HALF_SCREEN.md`。
+> 高度预估溢出且换档仍无法容纳 → 必须挂半屏。入口仅在组件 `methods` 内。完整 API 见 `references/HALF_SCREEN.md`。
 
 ```js
 Component({
@@ -153,11 +153,167 @@ Component({
 })
 ```
 
+### 溢出处理模板
+
+#### 方式一：半屏展示（纵向内容默认）
+
+**WXML**：
+
+```xml
+<!-- 列表项：仅渲染 visibleItems（top-N） -->
+<view wx:for="{{visibleItems}}" wx:key="id"
+      class="item-card" hover-class="item-card-hover"
+      bindtap="onTapItem"
+      data-id="{{item.id}}" data-name="{{item.name}}">
+  <image src="{{item.image}}" class="item-image" mode="aspectFill" />
+  <view class="item-name">{{item.name}}</view>
+  <text class="item-price">¥{{item.price}}</text>
+</view>
+
+<!-- 溢出提示 + 查看全部按钮 -->
+<view wx:if="{{omittedCount > 0}}"
+      class="view-all-btn" hover-class="view-all-btn-hover"
+      bindtap="onTapViewAll">
+  查看全部（共 {{totalCount}} 条）
+</view>
+```
+
+**JS**：
+
+```javascript
+Component({
+  data: {
+    visibleItems: [],
+    omittedCount: 0,
+    totalCount: 0,
+    allItems: [],  // 保留全量数据供半屏使用
+  },
+  lifetimes: {
+    created() {
+      console.info('[ai-mode] {componentName} created')
+      const { NotificationType } = wx.modelContext
+
+      const viewCtx = wx.modelContext.getViewContext(this)
+      const { minHeight, maxHeight, width } = viewCtx.getDimensions()
+      console.info(`[ai-mode] {componentName} dimensions width=${width} minHeight=${minHeight} maxHeight=${maxHeight}`)
+
+      // 记录容器尺寸，用于计算 maxVisibleItems
+      this._maxCardHeight = maxHeight
+
+      const modelCtx = wx.modelContext.getContext(this)
+      modelCtx.on(NotificationType.Result, (data) => {
+        const sc = data.result && data.result.structuredContent
+        console.info('[ai-mode] {componentName} 收到 Result:', sc)
+        if (!sc || !sc.items) return
+
+        const allItems = (sc.items || []).map(item => ({
+          // 字段归一化（按 STYLE_MIGRATION.md 步骤3 映射表）
+          id: item.id || item._id,
+          name: item.name || item.title || '',
+          image: item.cover || item.pic || item.thumb || item.image || '',
+          price: item.price || item.salePrice || 0,
+        }))
+
+        // 核心：按容器高度计算可容纳条数
+        const ITEM_HEIGHT_PX = 60  // 与 wxss 中 item 高度对应，按实际设计调整
+        const HEADER_PX = 25       // 标题区
+        const FOOTER_PX = 48       // 操作区
+        const PADDING_PX = 24      // 容器内边距 12*2
+        const available = this._maxCardHeight - HEADER_PX - FOOTER_PX - PADDING_PX
+        const maxVisible = Math.max(1, Math.floor(Math.max(0, available) / ITEM_HEIGHT_PX))
+
+        const visibleItems = allItems.slice(0, maxVisible)
+        const omittedCount = allItems.length - visibleItems.length
+
+        this.setData({
+          visibleItems,
+          omittedCount,
+          totalCount: allItems.length,
+          allItems,  // 供半屏使用
+        })
+        console.info(`[ai-mode] {componentName} setData total=${allItems.length} visible=${visibleItems.length} omitted=${omittedCount}`)
+      })
+
+      // 必做：溢出监听
+      viewCtx.on(NotificationType.Overflow, (data) => {
+        const overflowed = !!(data && data.overflowHeight > 0)
+        console.info(`[ai-mode] {componentName} overflow overflowed=${overflowed} data=${JSON.stringify(data)}`)
+      })
+      console.info('[ai-mode] {componentName} overflow monitor=on')
+    }
+  },
+  methods: {
+    _sendUserAction(text, name, args) {
+      console.info(`[ai-mode] {componentName} send api/call name=${name} args=${JSON.stringify(args)}`)
+      wx.modelContext.getContext(this).sendFollowUpMessage({
+        content: [
+          { type: 'text', text },
+          { type: 'api/call', data: { name, arguments: args } },
+        ],
+      })
+    },
+    onTapItem(e) {
+      const { id, name } = e.currentTarget.dataset
+      this._sendUserAction(`查看 ${name}`, 'searchItemDetail', { itemId: Number(id) })
+    },
+    // 溢出时：查看全部 → 打开半屏
+    onTapViewAll() {
+      const viewCtx = wx.modelContext.getViewContext(this)
+      // 复用项目内已有页面，把数据通过 storage 或 query 传递
+      // storage key 格式：skills_{skillName}_{dataName}
+      wx.setStorageSync('skills_{skillName}_allItems', this.data.allItems)
+      viewCtx.openDetailPage({
+        url: '/pages/{existingListPage}?fromAI=1'
+      })
+      console.info('[ai-mode] {componentName} openDetailPage url=/pages/{existingListPage}')
+    },
+  }
+})
+```
+
+#### 方式二：横向滚动（横向排列型内容）
+
+**WXML**：
+
+```xml
+<scroll-view scroll-x="true" class="scroll-container">
+  <view class="scroll-content">
+    <view wx:for="{{items}}" wx:key="id"
+          class="scroll-item" hover-class="scroll-item-hover"
+          bindtap="onTapItem"
+          data-id="{{item.id}}" data-name="{{item.name}}">
+      <image src="{{item.image}}" class="item-image" mode="aspectFill" />
+      <view class="item-name">{{item.name}}</view>
+    </view>
+  </view>
+</scroll-view>
+```
+
+**WXSS**：
+
+```css
+.scroll-container {
+  width: 100%;
+  white-space: nowrap;
+}
+.scroll-content {
+  display: flex;
+  flex-direction: row;
+  gap: 2.13vw;  /* 8px */
+}
+.scroll-item {
+  flex-shrink: 0;
+  width: 26.67vw;  /* 100px，按实际设计调整 */
+  /* 其他样式按设计规范 */
+}
+```
+
 ### 质量自检
 
 生成完组件后对照以下清单勾选；任一不满足须补齐：
 
 - [ ] **符合 `ATOMIC_COMPONENT_DESIGN.md`**：尺寸档位（5 档之一，`index.wxss` 顶部注释）、圆角 4px、整 skill 一套主题变量（**浅色 + 暗黑两套，颜色按 §2.1 流程从主包 `app.json`/`app.wxss` 等位置提取，且 wxss 顶部注释写出"色源 = …"链路**，通过 `@media (prefers-color-scheme: dark)` 切换）、12px 内边距、17/15/12 字号 + 同一基色 0.9/0.45/0.3 透明度分层、操作区 ≤3 且主动作 ≤1、按钮文案动宾结构
+- [ ] **高度预估与溢出**：已按 §7 预估；溢出时优先换档，换档仍溢出已自动生成半屏或横向滚动
 - [ ] 每个可交互元素都有 `bindtap` + 配对的 `hover-class`
 - [ ] 优先使用形态 2（`text` + `api/call` 组合）；只有无法映射到原子接口时才用形态 1（单 `text`）
 - [ ] 若 `content` 里有 `api/call`，前面必须有至少一项 `type: 'text'`；禁止单独发 `api/call`
