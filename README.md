@@ -10,7 +10,7 @@
 |---|---|---|
 | [`wxa-skills-generate`](./wxa-skills-generate/SKILL.md) | **生成**：分析小程序源码，识别业务步骤，提取网络接口与 JSAPI，生成符合 `wx.modelContext` 规范的技能分包（`skills/{skill-name}/`），并完成 `app.json` / `project.config.json` 集成 | 0.1.16 |
 | [`wxa-skills-validate`](./wxa-skills-validate/SKILL.md) | **校验**：对 `skills/` 产物执行"静态校验 → 真机执行 → 渲染验证 → 交付文档"闭环；按错误类型就地修复 skill 源文件 | 0.1.17 |
-| [`wxa-skills-eval`](./wxa-skills-eval/skill/SKILL.md) | **评测**：端到端评测 skill 的意图理解、轨迹生成与最终答案质量；产出多维度评测报告 | 0.1.15 |
+| [`wxa-skills-eval`](./wxa-skills-eval/SKILL.md) | **评测**：端到端评测 skill 的意图理解、轨迹生成与最终答案质量；产出多维度评测报告 | 0.1.17 |
 
 ## 工作流
 
