@@ -9,6 +9,14 @@
 
 ## wxa-skills-generate
 
+### [0.1.18] - 2026-06-08
+
+#### ✨ 新增
+
+- **高度预估与溢出自动决策流程**：在原子组件设计规范（`ATOMIC_COMPONENT_DESIGN.md`）中引入高度预估计算公式（`availableHeight = maxHeight - 97`）与溢出决策流程。当预估高度超出卡片大小时，系统自动决策处理方式（优先换至大比例档位；若仍溢出，则纵向内容转半屏，横向内容转 `scroll-x` 横向滚动），无需中断询问用户。
+- **溢出处理代码与模板支持**：在 `COMPONENT_TEMPLATES.md` 中新增“半屏展示（摘要+查看全部按钮）”和“横向滚动（`scroll-view`）”两套标准列表溢出处理模板。规范了卡片内高度动态计算（`maxVisible`）和溢出监听流程。
+- **自检及说明细化**：在 `SKILL.md` 中新增 5.0.2 节对高度预估与溢出处理的规范描述，同时更新组件自检清单（`SKILL.md` / `HALF_SCREEN.md`），确保模型生成时自动落实溢出处理。
+
 ### [0.1.17] - 2026-06-04
 
 #### ✨ 新增
@@ -35,7 +43,7 @@
 - 关联页面 `relatedPage` 必须以 `/` 开头（绝对路径）的约束在 C.3 节明确化
 - **半屏页面**（`viewCtx.openDetailPage` + 半屏内 `sendFollowUpMessage` 上行 + web-view h5 `WeixinJSBridge.invoke` 上行）：新增 `references/HALF_SCREEN.md` 专题（场景值 1433/1434、左上角关闭按钮适配、8 类禁用接口与组件清单），SKILL.md 新增 C.3.2 节简短说明。**默认不生成**，仅当业务确有"详情 / 用户补充信息"语义时按 reference 挂上
 - **组件过期态精细过滤**：`wx.modelContext.expireAllCards()` 与 `viewCtx.expirePreviousCards()` 支持 `{ componentPaths?, match? }` 参数（`componentPaths` 用绝对路径过滤、`match: 'latest'` 只过期最近一张匹配卡）；同步更新 SKILL.md C.3.1、JSAPI_WHITELIST.md §1/§2、COMPONENT_TEMPLATES.md "卡片过期"节
-- **多模态入参**：`inputSchema.properties.<field>` 支持 `"format": "image"`（类型为 `string`，运行时填本地图片路径），小程序 AI 输入框据此识别为多模态字段引导用户上传图片；SKILL.md 阶段 4.2 + CODE_TEMPLATES.md mcp.json 模板 同步示例
+- **多模态入参**：`inputSchema.properties.<field>` 支持 `"format": "image"`（类型为 `string`，运行时填本地图片路径），Agent 输入框据此识别为多模态字段引导用户上传图片；SKILL.md 阶段 4.2 + CODE_TEMPLATES.md mcp.json 模板 同步示例
 
 #### ♻️ 优化
 
@@ -60,8 +68,8 @@
 
 #### 🐛 修复
 
-- **AppID 无小程序 AI 的开发模式权限诊断**：修复 AppID 无小程序 AI 的开发模式权限时循环重试卡住的问题。新增 `_meta.diagnosis` 自动诊断机制，在 execute/render 产物中标记不可修复的环境问题（`appid_no_agent_permission`），并立即停止执行，不再进入源码修复流程
-- **加强小程序 AI 自动执行的流程指引**：明确在修复流程前检查 `_meta.diagnosis`，命中不可修复类则直接终止
+- **AppID 无 Agent 权限诊断**：修复 AppID 无 Agent 能力权限时循环重试卡住的问题。新增 `_meta.diagnosis` 自动诊断机制，在 execute/render 产物中标记不可修复的环境问题（`appid_no_agent_permission`），并立即停止执行，不再进入源码修复流程
+- **加强 Agent 自动执行的流程指引**：明确在修复流程前检查 `_meta.diagnosis`，命中不可修复类则直接终止
 - 清理废弃注释
 
 ### [0.1.16] - 2026-05-28

@@ -6,7 +6,7 @@
 >
 > ⚠️ **目录分层原则**：工具函数统一放在 `utils/` 目录下，与 `apis/` **同级**；`apis/` 目录只存放**在 `mcp.json` 中注册的原子接口**，不要混入工具函数，以保持接口与工具层的清晰边界。
 >
-> ⚠️ **日志必写原则**：原子接口和原子组件在关键节点（入口/入参/请求前后/出口/catch；组件的 created/setData/attached）打 `[ai-mode]` 前缀的 `console.info` 日志，这是真机验证失败时唯一的排查依据。
+> ⚠️ **日志必写原则**：原子接口和原子组件在关键节点（入口/入参/请求前后/出口/catch；组件的 created/setData/attached）打 `[agent]` 前缀的 `console.info` 日志，这是真机验证失败时唯一的排查依据。
 
 ## 目录
 
@@ -113,7 +113,7 @@ function request(options) {
 - 登录流程与主包完全相同（`wx.login` 换 token），从主包源码中提取接口路径、参数、返回字段后在分包内还原
 - 登录成功后将 token 保存到**模块级变量**（如 `let _token = ''`），供同一进程内的后续请求复用；不写 storage
 - 需防并发重复登录（多个接口同时调用 `ensureLogin` 时只发起一次登录请求）
-- 关键节点打 `[ai-mode]` 前缀日志
+- 关键节点打 `[agent]` 前缀日志
 
 > **使用方式**：在需要鉴权的原子接口文件入口处 `await ensureLogin()` 后再发起业务请求。
 
@@ -125,7 +125,7 @@ function request(options) {
 
 接口间数据传递有两种方式，**由业务逻辑决定用哪种，不要默认引入 storage 传递**：
 
-- **直接通过 `inputSchema` 参数传递**：下游接口在 `mcp.json` 的 `inputSchema` 中声明所需字段，由小程序 AI 从上游 `structuredContent` 里提取后传入，分包内无需写任何 storage 代码——这是优先选项。
+- **直接通过 `inputSchema` 参数传递**：下游接口在 `mcp.json` 的 `inputSchema` 中声明所需字段，由 Agent 从上游 `structuredContent` 里提取后传入，分包内无需写任何 storage 代码——这是优先选项。
 - **通过 `wx.setStorageSync` 传递**：仅当下游接口无法在 `inputSchema` 中描述依赖（例如需要静默传递大量中间态）时使用。key 命名格式 `skills_{skillName}_{dataName}`。
 
 ```javascript
@@ -147,14 +147,14 @@ const { errorResult, successResult } = require('../utils/util')
 // 按需追加其它 utils 导入，如 require('../utils/request')
 
 async function {apiName}(params = {}) {
-  console.info('[ai-mode] {apiName} 入口, params=', JSON.stringify(params))
+  console.info('[agent] {apiName} 入口, params=', JSON.stringify(params))
   try {
     // 1. 参数校验（仅校验真正必须的字段）
     // 2. 执行业务逻辑（网络请求 / JSAPI / storage 读写，完全对照主包）
     // 3. 整理返回值，返回 successResult
     return successResult('描述结果的一句话', { /* structuredContent */ })
   } catch (err) {
-    console.error('[ai-mode] {apiName} 出错:', err.message)
+    console.error('[agent] {apiName} 出错:', err.message)
     return errorResult(`操作失败: ${err.message}`)
   }
 }
@@ -165,7 +165,7 @@ module.exports = {apiName}
 > **生成原则**：
 > - 业务逻辑完全以主包为准，不要根据模板臆造字段名、接口路径或 storage key。
 > - 只校验真正影响业务的必填参数，不要过度防御。
-> - 有需要传递数据给下游的，先考虑 `outputSchema` + 小程序 AI 传参；确实需要 storage 传递时再用。
+> - 有需要传递数据给下游的，先考虑 `outputSchema` + Agent 传参；确实需要 storage 传递时再用。
 
 ---
 
@@ -198,14 +198,14 @@ const skill = wx.modelContext.createSkill('skills/{skillName}')
 
 // 注册中间件（按需组合，执行顺序 = 注册顺序）
 skill.use(async (ctx, next) => { // ← 中间件 1：鉴权
-  console.info('[ai-mode] middleware: ensureLogin')
+  console.info('[agent] middleware: ensureLogin')
   await next()
 })
 skill.use(async (ctx, next) => { // ← 中间件 2：上报
   try {
     await next()
   } finally {
-    console.info('[ai-mode] middleware: report', { name: ctx.name })
+    console.info('[agent] middleware: report', { name: ctx.name })
   }
 })
 
@@ -252,7 +252,7 @@ skill.registerAPI('{apiName2}', {apiName2})
 }
 ```
 
-**多模态入参（接收用户上传图片）**：当接口需要图片时，对应字段类型为 `string` 并加 `"format": "image"`，运行时填本地图片路径；小程序 AI 输入框据此识别为多模态字段并引导用户上传。
+**多模态入参（接收用户上传图片）**：当接口需要图片时，对应字段类型为 `string` 并加 `"format": "image"`，运行时填本地图片路径；Agent 输入框据此识别为多模态字段并引导用户上传。
 
 ```json
 {
