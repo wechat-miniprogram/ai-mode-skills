@@ -103,7 +103,7 @@ this.setData({ items: normalizedItems });
 | 源页面元素 | 处理方式 |
 |-----------|---------|
 | 交互事件（`touch*`、`longpress`） | 删除，只保留必要的 `tap` |
-| 滚动容器（`scroll-view`） | 仅当源页面是横滚（`scroll-x` / `scrollX`）时保留为 `<scroll-view scroll-x="true">`；纵向滚动（`scroll-y`）改为按 `ATOMIC_COMPONENT_DESIGN.md` §7.2 处理（半屏展示完整数据），容器不支持纵向滚动 |
+| 滚动容器（`scroll-view`） | 仅当源页面是横滚（`scroll-x` / `scrollX`）时保留为 `<scroll-view scroll-x="true">`；纵向滚动（`scroll-y`）改为减少展示条数 + 上行"查看更多"`api/call`（容器不支持纵向滚动） |
 | `swiper` / `picker` | 用 `<view>` 列表平铺 |
 | `navigator` 跳转 | 删除或改为纯文字展示 |
 | `button` | 改为 `<view>` 带 `bindtap` |

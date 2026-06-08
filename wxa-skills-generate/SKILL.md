@@ -1,9 +1,9 @@
 ---
 name: wxa-skills-generate
-description: 分析小程序项目源代码（含压缩/混淆），识别核心业务步骤，提取网络接口与 JSAPI 调用，生成符合 wx.modelContext 规范的技能分包（含原子接口 + 原子组件），并完成 app.json / project.config.json 配置集成。在以下场景触发：把小程序页面能力改造为 Agent 原子接口、生成 skills/ 分包代码、从源项目派生 MCP 工具、小程序接入 Agent 能力的代码生成。仅负责静态生成，生成完成后必须交棒 wxa-skills-validate 做校验。
+description: 分析小程序项目源代码（含压缩/混淆），识别核心业务步骤，提取网络接口与 JSAPI 调用，生成符合 wx.modelContext 规范的技能分包（含原子接口 + 原子组件），并完成 app.json / project.config.json 配置集成。在以下场景触发：把小程序页面能力改造为小程序 AI 原子接口、生成 skills/ 分包代码、从源项目派生 MCP 工具、小程序 AI 的开发模式代码生成。仅负责静态生成，生成完成后必须交棒 wxa-skills-validate 做校验。
 metadata:
   author: Tencent
-  version: '0.1.18'
+  version: '0.1.17'
 ---
 
 # wxa-skill-generate
@@ -23,7 +23,7 @@ metadata:
 
 ## 术语约定
 
-- **原子接口**：对外暴露给 Agent 的可调用能力。约定路径 `skills/{skill}/apis/{name}.js`（validator 也兼容 `tools/services/` / `tools/`）
+- **原子接口**：对外暴露给小程序 AI 的可调用能力。约定路径 `skills/{skill}/apis/{name}.js`（validator 也兼容 `tools/services/` / `tools/`）
 - **原子组件**：用于渲染原子接口返回数据的 UI。**强约束路径** `skills/{skill}/components/{name}/`（与 `mcp.json._meta.ui.componentPath` 严格相等）
 - **压缩代码**：单行超 500 字符、变量名单字符的产物（含混淆）
 
@@ -38,7 +38,7 @@ metadata:
 | `references/ATOMIC_COMPONENT_DESIGN.md` | 原子组件**设计规范**（尺寸档位 / 主题 / 边距 / 字体 / 布局 / 操作区） | 阶段 5 组件生成（强制前置，优先级最高） |
 | `references/ATOMIC_COMPONENT_CSS.md` | 原子组件 WXSS **实现规范**（容器约束、单位换算、省略规范、禁用清单） | 阶段 5 样式编写 |
 | `references/STYLE_MIGRATION.md` | 源样式提取 + 字段映射的完整工作流 | 阶段 5 组件生成前（强制前置） |
-| `references/HALF_SCREEN.md` | 半屏页面 API、上行消息、禁用清单 | 高度预估溢出时必须生成；其他按需 |
+| `references/HALF_SCREEN.md` | 半屏页面（`viewCtx.openDetailPage`）API、上行消息、禁用接口/组件清单 | **按需**——仅当业务确有"详情 / 补充信息"语义时（默认不生成） |
 
 ---
 
@@ -66,7 +66,7 @@ metadata:
 | 用户声明的能力在源码中找不到任何对应接口或页面 | 阶段 3 | "未能在源码中定位到 `<能力名>`，无法生成，请确认能力名称或补充源码" |
 | 未提供可读的源码目录（只给 appid / URL / 截图） | 阶段 1 前 | "请提供小程序完整源码目录，当前无法基于非源码资产生成" |
 | 所有候选实现都依赖非白名单 JSAPI 且无替代方案 | 阶段 3 | "该能力依赖非白名单 JSAPI（如 `<api>`），无法自动生成" |
-| `app.json` 缺 `"lazyCodeLoading": "requiredComponents"` 配置 | 阶段 1 | "项目 `app.json` 顶层缺少 `\"lazyCodeLoading\": \"requiredComponents\"`，否则独立分包内的原子接口被 Agent 路由调用时无法正确加载执行。请在 `app.json` 顶层添加该字段后重新触发生成" |
+| `app.json` 缺 `"lazyCodeLoading": "requiredComponents"` 配置 | 阶段 1 | "项目 `app.json` 顶层缺少 `\"lazyCodeLoading\": \"requiredComponents\"`，否则独立分包内的原子接口被小程序 AI 路由调用时无法正确加载执行。请在 `app.json` 顶层添加该字段后重新触发生成" |
 
 ### C. wx API 白名单（每次生成必须对照）
 
@@ -80,7 +80,7 @@ metadata:
 
 | 分类 | 高频接口 |
 |------|---------|
-| Agent | `wx.modelContext.registerAPI`、`wx.modelContext.createSkill`（创建 skill 实例，返回 `{ use, registerAPI }`，用于注册中间件）、`wx.modelContext.expireAllCards` |
+| 小程序 AI | `wx.modelContext.registerAPI`、`wx.modelContext.createSkill`（创建 skill 实例，返回 `{ use, registerAPI }`，用于注册中间件）、`wx.modelContext.expireAllCards` |
 | 登录 | `wx.login`、`wx.checkSession` |
 | 网络 | `wx.request`、网络状态 `getNetworkType` / `on*NetworkStatusChange` |
 | 云开发 | `wx.cloud.init` / `callFunction` / `database` |
@@ -104,7 +104,7 @@ metadata:
 
 | 分类 | 高频接口 |
 |------|---------|
-| Agent | `wx.modelContext.getContext(this)` / `getViewContext(this)`、`expireAllCards` / `expirePreviousCards` |
+| 小程序 AI | `wx.modelContext.getContext(this)` / `getViewContext(this)`、`expireAllCards` / `expirePreviousCards` |
 | 网络请求 | `wx.request`（需在 `mcp.json` 声明 `network` 能力，见 C.3） |
 | 系统 | `wx.getDeviceInfo`、`wx.getAppBaseInfo` |
 | 数据缓存 | `wx.getStorage` / `setStorage` 全套（含 `Sync`） |
@@ -150,12 +150,12 @@ metadata:
 
 声明与调用必须配对。
 
-#### C.3.2 半屏页面（溢出时必须生成，其他按需）
+#### C.3.2 半屏页面（按需，非强制，**默认不生成**）
 
-高度预估溢出且换档仍无法容纳时**必须**挂半屏（§7.2：纵向→半屏，横向→`scroll-x`）；其他场景仅当源业务确有"详情/补充信息"语义时挂上。
+半屏页面是**原子组件内容的延伸**——仅当源业务确有"详情 / 用户补充信息"语义时挂上。
 
 - **入口**：仅在原子组件 `methods` 内，`wx.modelContext.getViewContext(this).openDetailPage({ url })`，承载页面用项目内已有的小程序页面（**原子接口里没有 `this`，不可调**）
-- **半屏内"下一步"**：原生页面 `wx.modelContext.getContext().sendFollowUpMessage(...)`（**不传 `this`**）；web-view h5 走 `WeixinJSBridge.invoke('invokeMiniProgramAPI', { name: 'sendFollowUpMessage', arg })`。上行后半屏自动关闭回 Agent 对话
+- **半屏内"下一步"**：原生页面 `wx.modelContext.getContext().sendFollowUpMessage(...)`（**不传 `this`**）；web-view h5 走 `WeixinJSBridge.invoke('invokeMiniProgramAPI', { name: 'sendFollowUpMessage', arg })`。上行后半屏自动关闭回小程序 AI 对话
 - **场景值**：1433 / 1434；左上角关闭按钮位置用 `wx.getDetailPageCloseButtonBoundingClientRect` 适配
 - **禁用清单**：跳出类（`navigateToMiniProgram` / 公众号 / 视频号 / 表情 / 客服）、页面路由（`navigateTo` / `redirectTo` / `switchTab` / `reLaunch` / `wx.router.*`）、聊天工具（`shareXxxToGroup`）、地图 `MapContext.openMapApp`、广告（`createInterstitialAd` 等 + `<ad>` `<ad-custom>` 组件）、导航组件（`<navigator>` / `<functional-page-navigator>`）—— 完整清单与示例代码见 `references/HALF_SCREEN.md`
 
@@ -163,8 +163,8 @@ metadata:
 
 | 不可用 API | 替代策略 |
 |-----------|---------|
-| `wx.showToast` / `showModal` / `showLoading` / `showActionSheet` 等 UI 反馈 | 结果通过 `content` / `structuredContent` 回馈，Agent 无 loading/modal 概念 |
-| `wx.navigateTo` / `redirectTo` / `switchTab` / `reLaunch` / `navigateBack` | 删除，Agent 不在页面栈内导航 |
+| `wx.showToast` / `showModal` / `showLoading` / `showActionSheet` 等 UI 反馈 | 结果通过 `content` / `structuredContent` 回馈，小程序 AI 无 loading/modal 概念 |
+| `wx.navigateTo` / `redirectTo` / `switchTab` / `reLaunch` / `navigateBack` | 删除，小程序 AI 不在页面栈内导航 |
 | `wx.chooseImage` / `wx.chooseVideo` / `wx.previewImage`（老接口） | 改用 `wx.chooseMedia`（接口侧）/ `wx.previewMedia`（组件侧） |
 | `wx.setClipboardData` / `getClipboardData` | 跳过 |
 | `wx.getUserInfo` / `getUserProfile` | 改用登录 + 后端资料接口 |
@@ -227,7 +227,6 @@ metadata:
 阶段 5 — 代码生成
 - [ ] 每个原子组件符合 `ATOMIC_COMPONENT_DESIGN.md`（尺寸档位 / 背景 / 边距 / 字号 + 透明度 / 布局 / 操作区）
 - [ ] 每个原子组件走完 STYLE_MIGRATION.md 的 7 步
-- [ ] 每个组件已做高度预估（§7），溢出时已按 §7.2 处理（优先换档 → 半屏/横向滚动）
 - [ ] 每个组件内的可交互元素都绑了 bindtap，tap handler 优先上行 `{ content: [{ type: 'text', text }, { type: 'api/call', data: { name, arguments } }] }` 组合，text 是用户视角的简短中文、`name` 在 mcp.json 中存在、`arguments` 与 inputSchema 对齐；无法映射到原子接口时可退回单 `text` 形态
 - [ ] skills/{skill-name}/ 目录完整（mcp.json / SKILL.md / index.js / apis/* / utils/* / components/*）
 - [ ] SKILL.md 已按 `references/CODE_TEMPLATES.md` 第五节的 5 节结构与禁止项写完（路由说明，非接口手册）
@@ -300,8 +299,8 @@ metadata:
 1. **最小扫描**：只读 `app.json` 的 `tabBar.list`、`pages`（一级路径）、`subPackages.root`。**禁止**读 JS/WXML/WXSS，禁止做依赖分析。
 2. **归纳候选**：基于路径关键词（见 `references/ANALYSIS_PATTERNS.md` 页面功能识别表）归纳 3~6 个候选场景。
 3. **向用户提问**（一次问完，别反复打断）：
-   - 希望把哪些业务场景做成 Agent 技能？
-   - 每个场景希望暴露给 Agent 的原子能力大致是什么？
+   - 希望把哪些业务场景做成小程序 AI 的 SKILL？
+   - 每个场景希望暴露给小程序 AI 的原子能力大致是什么？
    - 是否涉及登录态、支付、位置、云开发等敏感能力？
 4. **等用户回复后**才能进入阶段 1。严禁在用户确认前扫描源码或生成代码。
 
@@ -444,9 +443,9 @@ metadata:
 
 **4.1 技能划分**：同业务域（商品/订单/地址）原子接口聚合到同一 skill；共享 storage 上下文的接口必须在同一 skill 内；每 skill 推荐 3-8 个原子接口（更多则按子业务拆分）。
 
-**4.2 接口字段**：每条接口含 `name`（驼峰、全局唯一）/ `description`（含内部串联操作，帮 Agent 决策）/ `inputSchema`（仅 Agent 需从用户获取的参数；无参用 `{"type":"object","properties":{}}`）/ `outputSchema`（对应 `structuredContent`）/ `_meta.ui.componentPath`（**可选**，格式 `components/xxx/index`，纯操作型/中间态可省；声明则组件目录必须 4 文件齐全）。
+**4.2 接口字段**：每条接口含 `name`（驼峰、全局唯一）/ `description`（含内部串联操作，帮助小程序 AI 决策）/ `inputSchema`（仅小程序 AI 需从用户获取的参数；无参用 `{"type":"object","properties":{}}`）/ `outputSchema`（对应 `structuredContent`）/ `_meta.ui.componentPath`（**可选**，格式 `components/xxx/index`，纯操作型/中间态可省；声明则组件目录必须 4 文件齐全）。
 
-> **多模态入参**：当接口需要用户上传图片（如 P 图、图像识别）时，对应 `inputSchema.properties.<field>` 加 `"format": "image"`，类型为 `string`（运行时填本地图片路径）。Agent 输入框会据此识别为多模态字段、引导用户上传图片。
+> **多模态入参**：当接口需要用户上传图片（如 P 图、图像识别）时，对应 `inputSchema.properties.<field>` 加 `"format": "image"`，类型为 `string`（运行时填本地图片路径）。小程序 AI 输入框会据此识别为多模态字段、引导用户上传图片。
 
 **4.3 按需关联组件**：返回值类型 → 组件模板对照（详见 `references/COMPONENT_TEMPLATES.md`）：列表/卡片项 → 通用列表；详情/单对象 → 详情卡片；购物车/带数量总价 → 购物车；下单成功/支付结果/操作确认 → 状态结果；单值/中间数据 → 可不配组件，需收束反馈时用状态结果（简化版）。
 
@@ -494,8 +493,7 @@ storage key 命名统一 `skills_{skillName}_{dataName}`，列表含 `key` / 写
 |------|------|---------|------|
 | **5.0.0** 设计规范（最高优先级） | 尺寸/主题/边距/字体/布局/操作区 | ① 5 档宽高比 + 圆角 4px；② 主题色按 §2.1 流程从主包 `app.json`/`app.wxss` 抽（浅 + 暗都抽，wxss 顶部注释"色源=…"链路；主包 6 步都查不到才走 §2.3 兜底）；③ 边距 屏幕 16 / 卡片 12 / 元素 8·16；④ 字号 17/15/12 三档 + 同一基色 0.9/0.45/0.3 透明度分层；⑤ 主轴上下/左右布局；横向超长可用 `<scroll-view scroll-x>`，禁纵向滚动、禁 >2 列网格；⑥ ≤3 控件、主动作 ≤1、动宾文案、主按钮居右 | `references/ATOMIC_COMPONENT_DESIGN.md` |
 | **5.0** 源样式提取 + 字段映射 | 7 步工作流 | 与设计规范冲突时以**设计规范为准**，仅迁移源项目品牌色与字段映射结果。**自检**：wxss 主色是 `#07c160` / `#ff4d4f` 且源页面未用，或 wxml 出现 `item.imageUrl` 但源 API 字段是 `cover`/`pic`/`thumb` — 视为"照抄模板"，必须回炉重做 | `references/STYLE_MIGRATION.md` |
-| **5.0.1** 组件交互行为 | 组件是 Agent "回合出口" 不是"页面入口" | 每个组件都要同时考虑"展示什么"+"用户下一步做什么"——按 `mcp.json.apis[].description` + API 依赖图列出下一步，映射到 `mcp.json.apis[].name` **已存在**的接口；不存在则去掉按钮，**不要上行不存在的 name**。每个可交互元素绑 `bindtap` + `hover-class`，关键实体用 `data-*` 携带 | `references/COMPONENT_TEMPLATES.md` "上行消息"节 |
-| **5.0.2** 高度预估与溢出处理 | **任何组件**都可能溢出，不仅限于列表 | ① 按 §七公式估算内容高度 vs 可用高度；② 溢出时**优先换档**（如 4:3→1:1）；③ 换档仍溢出 → 按内容形态**自动决策**（纵向→半屏，横向→scroll-x），不问用户；④ 按决策生成代码 | `references/ATOMIC_COMPONENT_DESIGN.md` §七 + `references/HALF_SCREEN.md` |
+| **5.0.1** 组件交互行为 | 组件是小程序 AI 的"回合出口"，不是"页面入口" | 每个组件都要同时考虑"展示什么"+"用户下一步做什么"——按 `mcp.json.apis[].description` + API 依赖图列出下一步，映射到 `mcp.json.apis[].name` **已存在**的接口；不存在则去掉按钮，**不要上行不存在的 name**。每个可交互元素绑 `bindtap` + `hover-class`，关键实体用 `data-*` 携带 | `references/COMPONENT_TEMPLATES.md` "上行消息"节 |
 
 tap handler 优先形态 2（`text` + `api/call` 组合）：
 
@@ -509,11 +507,7 @@ wx.modelContext.getContext(this).sendFollowUpMessage({
 })
 ```
 
-只有当点击动作无法映射到原子接口时才退回形态 1（单 `text`）。每次上行 `api/call` 前打一行 `[agent] {componentName} send api/call name=... args=...` console.info。**禁止**：组件内直调业务接口、单独发 `api/call` 不带前导 `text`、`arguments` 用占位值、`name` 不在 `mcp.json` 中、只展示不响应的"死"按钮、用 `this._modelCtx.sendFollowUpMessage(...)` 缓存引用调方法。
-
-### 5.0.2 高度预估与溢出处理
-
-写 WXML/WXSS 前按 `ATOMIC_COMPONENT_DESIGN.md` §7 做高度预估：`availableHeight = maxHeight − 97`，若内容估算超出则按 §7.2 决策——优先换档；换档仍溢出则纵向内容→半屏、横向排列→`<scroll-view scroll-x>`。自动决策，不问用户。
+只有当点击动作无法映射到原子接口时才退回形态 1（单 `text`）。每次上行 `api/call` 前打一行 `[ai-mode] {componentName} send api/call name=... args=...` console.info。**禁止**：组件内直调业务接口、单独发 `api/call` 不带前导 `text`、`arguments` 用占位值、`name` 不在 `mcp.json` 中、只展示不响应的"死"按钮、用 `this._modelCtx.sendFollowUpMessage(...)` 缓存引用调方法。
 
 ### 5.1 目录结构
 
@@ -538,7 +532,7 @@ wx.modelContext.getContext(this).sendFollowUpMessage({
 - **`mcp.json`**：顶层 `{ "apis": [...] }`，每项必含 `name` / `description` / `inputSchema` / `outputSchema` / `_meta.ui.componentPath`；可含 `components` 数组（声明组件网络能力，详见 C.3）。完整字段示例见 `references/CODE_TEMPLATES.md` 第四节
 - **技能自身 `SKILL.md`**（**文件名严格全大写**）定位"路由说明"，**只允许 5 节按序**：能力域定位 → 触发场景（用户原话 few-shot）→ 不适用范围 → 前置条件 → 使用顺序。**通篇禁止**：驼峰 apiName / `inputSchema` / `outputSchema` / 参数表 / 返回值表 / `componentPath` / storage key / 接口依赖图 / 安装 CLI 运维。完整模板见 `references/CODE_TEMPLATES.md` 第五节
 - **返回值格式**：`{ isError?, content: [{type:'text', text}], structuredContent?, _meta? }`——`content` 给 LLM 文本，`structuredContent` 对应 `outputSchema`，`_meta` 对 LLM 不可见可传 UI 组件
-- **日志规范**：原子接口必打 入口 / 入参 / 请求前后 / 出口 / catch；原子组件必打 `created`/`attached` / 收到 Result / `setData` / `NotificationType.Overflow`（**必监听**，用于校验裁剪）。统一前缀 `[agent]`。**日志不打够等于没日志**——真机失败看不到关键节点 → 回阶段 5 补齐重跑
+- **日志规范**：原子接口必打 入口 / 入参 / 请求前后 / 出口 / catch；原子组件必打 `created`/`attached` / 收到 Result / `setData` / `NotificationType.Overflow`（**必监听**，用于校验裁剪）。统一前缀 `[ai-mode]`。**日志不打够等于没日志**——真机失败看不到关键节点 → 回阶段 5 补齐重跑
 
 ---
 

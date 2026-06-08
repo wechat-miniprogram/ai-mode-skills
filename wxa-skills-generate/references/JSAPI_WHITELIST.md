@@ -18,7 +18,7 @@
 
 | 分类 | 接口 |
 |------|------|
-| Agent | `wx.modelContext.registerAPI('name', handler)`、`wx.modelContext.createSkill(skillPath)`（创建 skill 实例，返回 `{ use, registerAPI }`）、`wx.modelContext.expireAllCards({ componentPaths?, match? })`（标记所有 `expirable: true` 的组件卡片为过期；可按 `componentPath` 绝对路径过滤，`match: 'latest'` 只过期最近一张） |
+| 小程序 AI | `wx.modelContext.registerAPI('name', handler)`、`wx.modelContext.createSkill(skillPath)`（创建 skill 实例，返回 `{ use, registerAPI }`）、`wx.modelContext.expireAllCards({ componentPaths?, match? })`（标记所有 `expirable: true` 的组件卡片为过期；可按 `componentPath` 绝对路径过滤，`match: 'latest'` 只过期最近一张） |
 | 登录 | `wx.login`、`wx.checkSession` |
 | 网络 | `wx.request`、`wx.onNetworkWeakChange` / `onNetworkStatusChange` / `offNetworkWeakChange` / `offNetworkStatusChange` / `getNetworkType` / `getLocalIPAddress` |
 | 云开发 | `wx.cloud.init`、`wx.cloud.callFunction`、`wx.cloud.database` |
@@ -62,9 +62,9 @@
 
 | 分类 | 接口 |
 |------|------|
-| Agent（模型上下文） | `wx.modelContext.getContext(this)` → `ctx.on(NotificationType.Input, cb)`（监听原子接口入参）、`ctx.on(NotificationType.Result, cb)`（监听原子接口返回）、`ctx.sendFollowUpMessage({ content })`（上行文本/`api/call`） |
-| Agent（视图上下文） | `wx.modelContext.getViewContext(this)` → `viewCtx.getDimensions()`（获取卡片尺寸）、`viewCtx.on(NotificationType.Overflow, cb)`（监听溢出裁剪）、`viewCtx.setRelatedPage({ query })`（动态设关联页 query）、`viewCtx.expirePreviousCards({ componentPaths?, match? })`（标记**当前组件之前**已渲染、且 `expirable: true` 的卡片为过期；自身不受影响）、`viewCtx.openDetailPage({ url })`（打开半屏页面，详见 `references/HALF_SCREEN.md`） |
-| Agent（卡片过期，全量） | `wx.modelContext.expireAllCards({ componentPaths?, match? })`（标记所有 `expirable: true` 的卡片为过期，**包括自身**；接口与组件均可调用）。`componentPaths` 用绝对路径（含分包前缀），多条取并集；`match: 'latest'` 只过期最近一张匹配卡 |
+| 小程序 AI（模型上下文） | `wx.modelContext.getContext(this)` → `ctx.on(NotificationType.Input, cb)`（监听原子接口入参）、`ctx.on(NotificationType.Result, cb)`（监听原子接口返回）、`ctx.sendFollowUpMessage({ content })`（上行文本/`api/call`） |
+| 小程序 AI（视图上下文） | `wx.modelContext.getViewContext(this)` → `viewCtx.getDimensions()`（获取卡片尺寸）、`viewCtx.on(NotificationType.Overflow, cb)`（监听溢出裁剪）、`viewCtx.setRelatedPage({ query })`（动态设关联页 query）、`viewCtx.expirePreviousCards({ componentPaths?, match? })`（标记**当前组件之前**已渲染、且 `expirable: true` 的卡片为过期；自身不受影响）、`viewCtx.openDetailPage({ url })`（打开半屏页面，详见 `references/HALF_SCREEN.md`） |
+| 小程序 AI（卡片过期，全量） | `wx.modelContext.expireAllCards({ componentPaths?, match? })`（标记所有 `expirable: true` 的卡片为过期，**包括自身**；接口与组件均可调用）。`componentPaths` 用绝对路径（含分包前缀），多条取并集；`match: 'latest'` 只过期最近一张匹配卡 |
 | 界面 | `wx.previewMedia` |
 | 网络请求 | `wx.request`（需在 `mcp.json` 声明 `network` 能力，见 `SKILL.md §C.3`） |
 | 系统 | `wx.getDeviceInfo`、`wx.getAppBaseInfo` |
@@ -81,10 +81,10 @@
 
 | 不可用 API | 替代策略 |
 |-----------|---------|
-| `wx.showToast` / `hideToast` / `showModal` / `showLoading` / `hideLoading` / `showActionSheet` | 结果通过 `content` / `structuredContent` 回馈，Agent 无 loading/modal 概念 |
+| `wx.showToast` / `hideToast` / `showModal` / `showLoading` / `hideLoading` / `showActionSheet` | 结果通过 `content` / `structuredContent` 回馈，小程序 AI 无 loading/modal 概念 |
 | `wx.pageScrollTo` | 组件容器不支持滚动 |
 | `wx.createAnimation` | 用 CSS `transition/animation`（限 opacity/transform） |
-| `wx.navigateTo` / `redirectTo` / `switchTab` / `reLaunch` / `navigateBack` | 删除，Agent 不在页面栈内导航 |
+| `wx.navigateTo` / `redirectTo` / `switchTab` / `reLaunch` / `navigateBack` | 删除，小程序 AI 不在页面栈内导航 |
 | `wx.chooseImage`（老） | 改用 `wx.chooseMedia` |
 | `wx.chooseVideo`（老） | 改用 `wx.chooseMedia` |
 | `wx.previewImage`（老） | 组件侧改用 `wx.previewMedia` |
@@ -95,8 +95,6 @@
 > Taro 源码里这些 JSAPI 同样可能以 `Taro.xxx` 出现，识别后按上表替代策略处理。
 
 ### Taro 特有不可迁移（仅 Taro 项目）
-
-详见 `wxa-skills-generate-taro/references/TARO_ANALYSIS_PATTERNS.md` §4.8。
 
 | 不可用 | 替代策略 |
 |-------|---------|
