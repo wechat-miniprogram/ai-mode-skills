@@ -8,7 +8,7 @@
 
 | Skill | 作用 | 当前版本 |
 |---|---|---|
-| [`wxa-skills-generate`](./wxa-skills-generate/SKILL.md) | **生成**：分析小程序源码，识别业务步骤，提取网络接口与 JSAPI，生成符合 `wx.modelContext` 规范的技能分包（`skills/{skill-name}/`），并完成 `app.json` / `project.config.json` 集成 | 0.1.18 |
+| [`wxa-skills-generate`](./wxa-skills-generate/SKILL.md) | **生成**：分析小程序源码，识别业务步骤，提取网络接口与 JSAPI，生成符合微信小程序 AI 开发模式规范的技能分包（`skills/{skill-name}/`），并完成 `app.json` / `project.config.json` 集成 | 0.1.18 |
 | [`wxa-skills-validate`](./wxa-skills-validate/SKILL.md) | **校验**：对 `skills/` 产物执行"静态校验 → 真机执行 → 渲染验证 → 交付文档"闭环；按错误类型就地修复 skill 源文件 | 0.1.17 |
 | [`wxa-skills-eval`](./wxa-skills-eval/SKILL.md) | **评测**：端到端评测 skill 的意图理解、轨迹生成与最终答案质量；产出多维度评测报告 | 0.1.17 |
 
@@ -23,20 +23,22 @@
 
 ## 快速开始
 
-### 1. 生成 skills（在能加载辅助 Skill 的 IDE 中）
+### 1. 生成 skills（在支持 skills 的 coding agent 中）
 
 ```
-@wxa-skills-generate 帮我把这个小程序的"商品检索 + 订单管理"做成小程序 AI 的 SKILL
+使用 wxa-skills-generate 帮我把这个小程序的"商品检索 + 订单管理"做成小程序 AI 的 SKILL
 ```
 
 skill 会按 6 个阶段（业务澄清 → 项目扫描 → 业务识别 → 接口提取 → 接口设计 → 代码生成 → 配置集成）输出完整的 `skills/{skill-name}/` 目录，并交棒给 `wxa-skills-validate`。
+
+> 💡 每次建议生成一小部分业务逻辑的代码，验证效果后继续生成；也可基于现有的 skills 进行扩展，完善覆盖的业务场景。
 
 详见 [`wxa-skills-generate/SKILL.md`](./wxa-skills-generate/SKILL.md)。
 
 ### 2. 校验 skills
 
 ```
-@wxa-skills-validate 校验 ./skills 目录
+使用 wxa-skills-validate 校验 ./skills 目录
 ```
 
 skill 会执行：
@@ -46,12 +48,18 @@ skill 会执行：
 3. **渲染验证**（截图原子组件，检查溢出、空数据、深色模式）
 4. **就地修复 + 交付文档**
 
-详见 [`wxa-skills-validate/SKILL.md`](./wxa-skills-validate/SKILL.md)。
+> 💡 三步可单独执行，不必走完整闭环。例如只想验证组件效果时：
+>
+> ```
+> 使用 wxa-skills-validate 帮我校验 ./skills 目录下的原子组件效果，使用 mock 数据验证即可，无需执行原子接口
+> ```
 
 依赖：
 
 - Node.js ≥ 18
 - 微信开发者工具已安装且 CLI 可执行（macOS 默认 `/Applications/wechatwebdevtools.app/Contents/MacOS/cli`）
+
+详见 [`wxa-skills-validate/SKILL.md`](./wxa-skills-validate/SKILL.md)。
 
 ### 3. 评测（CLI / Web）
 
