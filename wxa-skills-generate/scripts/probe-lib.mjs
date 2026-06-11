@@ -1,162 +1,111 @@
-// Automator 探针核心库：封装启动、注入捕获器、按 plan 执行交互
-// 仅供 scripts/probe.mjs 调用，不直接对外暴露
-//
-// 捕获策略：使用 miniProgram.evaluate 在小程序运行时内覆写 wx.request，
-// 在 success/fail 回调中同时记录请求参数与响应数据，通过 evaluate 读取结果。
-// （mockWxMethod 的 this.origin 对 wx.request 等异步 API 的 success/fail 回调
-//   无法触发，因此改用 evaluate 方案。）
-//
-// 使用方式与触发条件见 references/RUNTIME_PROBE.md
+// probe-lib.mjs — Automator 探针核心库
+// 通过 evaluate 覆写 wx.request 捕获请求/响应，按 plan 执行交互
 
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { createConnection } from "node:net";
-import { execSync } from "node:child_process";
 
 export const DEFAULT_AUTO_PORT = 9420;
-export const DEFAULT_CLI_PATH_DARWIN = "/Applications/wechatwebdevtools.app/Contents/MacOS/cli";
-export const DEFAULT_CLI_PATH_WIN = "C:/Program Files (x86)/Tencent/微信web开发者工具/cli.bat";
 export const DEFAULT_LAUNCH_TIMEOUT = 60_000;
 export const DEFAULT_INTERACTION_TIMEOUT = 10_000;
 
-// 全局收集器名称（小程序端 window 上的 key）
-const PROBE_COLLECTOR = "__ai_mode_probe_results__";
+// macOS 默认 CLI 路径
+export const DEFAULT_CLI_PATH_MAC = "/Applications/wechatwebdevtools.app/Contents/MacOS/cli";
+// Windows 默认 CLI 路径
+export const DEFAULT_CLI_PATH_WIN = "C:/Program Files (x86)/Tencent/微信web开发者工具/cli.bat";
 
-// ─── 端口检测 ───────────────────────────────────────────
+// 全局收集器变量名前缀（小程序端 window 上的 key）
+const PROBE_COLLECTOR_PREFIX = "__ai_mode_probe_results__";
+
+/**
+ * 加载 miniprogram-automator。
+ */
+async function loadAutomator() {
+  const { createRequire } = await import("node:module");
+  const { fileURLToPath } = await import("node:url");
+  const { dirname, join } = await import("node:path");
+
+  const __filename = fileURLToPath(import.meta.url);
+  const scriptsDir = dirname(__filename);
+
+  const scriptsRequire = createRequire(join(scriptsDir, "_entrypoint.js"));
+  let automator;
+  try {
+    automator = scriptsRequire("miniprogram-automator");
+  } catch (e) {
+    throw new Error(
+      `miniprogram-automator 未安装。请在 ${scriptsDir} 目录执行:\n` +
+      `  cd ${scriptsDir} && npm install miniprogram-automator\n` +
+      `原始错误: ${e.message}`
+    );
+  }
+
+  // Patch: 新版开发者工具 Tool.getInfo 返回的 SDKVersion 可能为 undefined，
+  try {
+    const MiniProgram = scriptsRequire("miniprogram-automator/out/MiniProgram");
+    const MP = MiniProgram.default || MiniProgram;
+    if (MP?.prototype?.checkVersion) {
+      const orig = MP.prototype.checkVersion;
+      MP.prototype.checkVersion = async function () {
+        try { await orig.call(this); }
+        catch (err) { console.warn(`[probe] checkVersion 跳过: ${err.message}（不影响探测）`); }
+      };
+    }
+  } catch { /* patch 失败不阻断 */ }
+
+  return automator;
+}
+
+// ─── 工具函数 ────────────────────────────────────────────
 
 /**
  * 检测端口是否已被占用（即开发者工具是否已在 auto 模式运行）
- * @param {number} port
- * @returns {Promise<boolean>} true = 端口已被占用
  */
 export function isPortInUse(port) {
   return new Promise((resolve) => {
-    const client = createConnection(port, "127.0.0.1", () => {
-      client.destroy();
-      resolve(true);
-    });
-    client.on("error", () => {
-      client.destroy();
-      resolve(false);
-    });
-    client.setTimeout(2000, () => {
-      client.destroy();
-      resolve(false);
-    });
+    const client = createConnection(port, "127.0.0.1", () => { client.destroy(); resolve(true); });
+    client.on("error", () => { client.destroy(); resolve(false); });
+    client.setTimeout(2000, () => { client.destroy(); resolve(false); });
   });
 }
 
-// ─── CLI 路径检测 ────────────────────────────────────────
-
 /**
- * 按优先级检测微信开发者工具 CLI 路径
- * 支持：默认路径 → 用户目录 → mdfind(macOS) → 环境变量
+ * 获取默认 CLI 路径（按当前平台返回默认值）。
+ * 不做文件系统搜索——如果默认路径不存在，由调用方（LLM）通过 --cli-path 填充真实路径。
  */
 export function detectDefaultCliPath() {
-  // 1. 环境变量
-  const envPath = process.env.WX_CLI_PATH;
-  if (envPath && existsSync(envPath)) return envPath;
+  // 优先使用环境变量
+  const envCliPath = process.env.WX_CLI_PATH;
+  if (envCliPath && existsSync(envCliPath)) return envCliPath;
 
-  // 2. 常见路径列表
-  const candidates = process.platform === "darwin"
-    ? [
-        DEFAULT_CLI_PATH_DARWIN,
-        `${process.env.HOME}/Applications/wechatwebdevtools.app/Contents/MacOS/cli`,
-        "/opt/homebrew/Caskroom/wechatwebdevtools/latest/wechatwebdevtools.app/Contents/MacOS/cli",
-      ]
-    : process.platform === "win32"
-      ? [
-          DEFAULT_CLI_PATH_WIN,
-          "D:/Program Files (x86)/Tencent/微信web开发者工具/cli.bat",
-          "E:/Program Files (x86)/Tencent/微信web开发者工具/cli.bat",
-        ]
-      : [];
+  // 返回平台默认路径（存在则用，不存在则返回 null 让调用方指定）
+  const defaultPath = process.platform === "darwin" ? DEFAULT_CLI_PATH_MAC
+    : process.platform === "win32" ? DEFAULT_CLI_PATH_WIN
+    : null;
 
-  for (const p of candidates) {
-    if (existsSync(p)) return p;
-  }
-
-  // 3. macOS: 用 mdfind 搜索
-  if (process.platform === "darwin") {
-    try {
-      const found = execSync(
-        "mdfind -name 'wechatwebdevtools' -onlyin / 2>/dev/null | grep -E 'cli$' | head -1",
-        { encoding: "utf8", timeout: 5000 },
-      ).trim();
-      if (found && existsSync(found)) return found;
-    } catch {}
-  }
-
+  if (defaultPath && existsSync(defaultPath)) return defaultPath;
   return null;
 }
 
-// ─── 参数解析 ────────────────────────────────────────────
-
+/**
+ * 解析命令行参数（--key value 格式）
+ */
 export function parseArgs(argv) {
-  const out = {};
-  for (let i = 0; i < argv.length; i += 1) {
-    const k = argv[i];
-    if (!k.startsWith("--")) continue;
-    const key = k.slice(2);
-    const next = argv[i + 1];
-    if (next === undefined || next.startsWith("--")) {
-      out[key] = true;
+  const result = {};
+  for (let i = 0; i < argv.length; i++) {
+    if (!argv[i].startsWith("--")) continue;
+    const key = argv[i].slice(2);
+    const nextArg = argv[i + 1];
+    if (!nextArg || nextArg.startsWith("--")) {
+      result[key] = true;
     } else {
-      out[key] = next;
-      i += 1;
+      result[key] = nextArg;
+      i++;
     }
   }
-  return out;
-}
-
-// ─── automator 加载 ──────────────────────────────────────
-
-async function loadAutomator() {
-  try {
-    const mod = await import("miniprogram-automator");
-    return mod.default || mod;
-  } catch (err) {
-    throw new Error(
-      "无法加载 miniprogram-automator。请在当前 skill 目录执行：\n" +
-      "  npm i -D miniprogram-automator\n" +
-      "或在工作区根目录安装后通过 NODE_PATH 指向。\n" +
-      `底层错误：${err.message}`,
-    );
-  }
-}
-
-// ─── 前置校验 ────────────────────────────────────────────
-
-export async function ensureCliPort({ autoPort, cliPath, projectPath }) {
-  if (!cliPath) throw new Error("未提供 cliPath，且未在默认路径检测到微信开发者工具 CLI。");
-  if (!existsSync(cliPath)) throw new Error(`cliPath 不存在：${cliPath}`);
-  if (!existsSync(projectPath)) throw new Error(`projectPath 不存在：${projectPath}`);
-}
-
-// ─── 交互步骤执行 ────────────────────────────────────────
-
-async function runOneStep(page, step) {
-  if (step.kind === "tap") {
-    const el = await page.$(step.selector);
-    if (!el) throw new Error(`未找到元素：${step.selector}`);
-    await el.tap();
-  } else if (step.kind === "longpress") {
-    const el = await page.$(step.selector);
-    if (!el) throw new Error(`未找到元素：${step.selector}`);
-    await el.longpress();
-  } else if (step.kind === "input") {
-    const el = await page.$(step.selector);
-    if (!el) throw new Error(`未找到元素：${step.selector}`);
-    await el.input(step.value);
-  } else if (step.kind === "callMethod") {
-    await page.callMethod(step.method, ...(step.args || []));
-  } else if (step.kind === "wait") {
-    await delay(step.ms || 500);
-  } else {
-    throw new Error(`未知 trigger.kind=${step.kind}`);
-  }
+  return result;
 }
 
 // ─── evaluate 注入：覆写 wx.request ─────────────────────
@@ -166,49 +115,42 @@ async function runOneStep(page, step) {
  * 在 success/fail 回调中记录请求参数 + 响应数据到全局变量。
  * 原始请求仍然正常发出，业务行为不受影响。
  *
- * @param {object} mp - miniProgram 实例
- * @param {string} collectorKey - 全局收集器变量名
+ * 注意：覆写仅存在于当前页面的 JS 上下文中，
+ * 当页面通过 reLaunch/navigateTo 切换后，新页面会获得全新的上下文，
+ * 因此需要在每次 probeOne 开头重新注入。
+ * 探测完成后无需手动恢复——下一次 reLaunch 会自动重置。
  */
-async function injectRequestCapture(mp, collectorKey) {
-  await mp.evaluate((key) => {
-    // eslint-disable-next-line no-undef
+async function injectRequestCapture(miniProgram, collectorKey) {
+  await miniProgram.evaluate((key) => {
     var global = window;
     global[key] = [];
+    var originalRequest = wx.request;
 
-    // 保存原始 wx.request
-    var _origRequest = wx.request;
-
-    // 覆写（不用 Object.defineProperty / spread 语法，避免序列化问题）
-    wx.request = function (opts) {
-      var reqInfo = {
-        url: opts && opts.url,
-        method: (opts && opts.method) || "GET",
-        data: opts && opts.data,
-        header: opts && opts.header,
+    wx.request = function (options) {
+      var requestInfo = {
+        url: options.url,
+        method: options.method || "GET",
+        data: options.data,
+        header: options.header,
       };
-
-      return _origRequest({
-        url: opts && opts.url,
-        method: opts && opts.method,
-        data: opts && opts.data,
-        header: opts && opts.header,
-        success: function (res) {
+      return originalRequest({
+        url: options.url,
+        method: options.method,
+        data: options.data,
+        header: options.header,
+        success: function (response) {
           global[key].push({
-            request: reqInfo,
-            response: {
-              statusCode: res.statusCode,
-              header: res.header,
-              data: res.data,
-            },
+            request: requestInfo,
+            response: { statusCode: response.statusCode, header: response.header, data: response.data },
           });
-          if (opts && opts.success) opts.success(res);
+          if (options.success) options.success(response);
         },
-        fail: function (err) {
+        fail: function (error) {
           global[key].push({
-            request: reqInfo,
-            response: { error: err && err.errMsg },
+            request: requestInfo,
+            response: { error: error && error.errMsg },
           });
-          if (opts && opts.fail) opts.fail(err);
+          if (options.fail) options.fail(error);
         },
       });
     };
@@ -217,14 +159,9 @@ async function injectRequestCapture(mp, collectorKey) {
 
 /**
  * 从全局变量中读取已捕获的请求/响应，并清空收集器
- *
- * @param {object} mp - miniProgram 实例
- * @param {string} collectorKey - 全局收集器变量名
- * @returns {Promise<Array>} 已捕获的记录
  */
-async function readCaptured(mp, collectorKey) {
-  const json = await mp.evaluate((key) => {
-    // eslint-disable-next-line no-undef
+async function readCapturedRequests(miniProgram, collectorKey) {
+  const json = await miniProgram.evaluate((key) => {
     var results = window[key] || [];
     window[key] = [];
     return JSON.stringify(results);
@@ -232,123 +169,122 @@ async function readCaptured(mp, collectorKey) {
   return json ? JSON.parse(json) : [];
 }
 
-/**
- * 恢复原始 wx.request（可选，清理用）
- *
- * @param {object} mp - miniProgram 实例
- */
-async function restoreRequestCapture(mp) {
-  await mp.evaluate(() => {
-    // 当前无法完美恢复原始 wx.request（因为 _origRequest 在闭包内），
-    // 但由于每次 probeOne 开头都会重新 injectRequestCapture，
-    // 所以不需要恢复——下一个 reLaunch 会重新初始化页面上下文。
-    // 如果需要恢复，可以在 inject 时把 _origRequest 存到全局。
-  });
+// ─── 交互步骤执行 ────────────────────────────────────────
+
+async function executeStep(page, step) {
+  switch (step.kind) {
+    case "tap":
+    case "longpress": {
+      const element = await page.$(step.selector);
+      if (!element) throw new Error(`未找到元素：${step.selector}`);
+      await element[step.kind]();
+      break;
+    }
+    case "input": {
+      const element = await page.$(step.selector);
+      if (!element) throw new Error(`未找到元素：${step.selector}`);
+      await element.input(step.value);
+      break;
+    }
+    case "callMethod":
+      await page.callMethod(step.method, ...(step.args || []));
+      break;
+    case "wait":
+      await delay(step.ms || 500);
+      break;
+    default:
+      throw new Error(`未知 trigger.kind=${step.kind}`);
+  }
+}
+
+// ─── 导航辅助 ────────────────────────────────────────────
+
+async function navigateToPage(miniProgram, pagePath) {
+  try { return await miniProgram.reLaunch(pagePath); }
+  catch { return await miniProgram.navigateTo(pagePath); }
 }
 
 // ─── 单接口探测 ──────────────────────────────────────────
 
-async function probeOne({ mp, item, interactionTimeoutMs }) {
+async function probeOneApi({ miniProgram, planItem, interactionTimeoutMs }) {
   const result = {
-    api_name: item.api_name,
-    target_page: item.target_page,
+    api_name: planItem.api_name,
+    target_page: planItem.target_page,
     status: "pending",
     request: null,
     response: null,
     duration_ms: 0,
     error: null,
   };
-  const startedAt = Date.now();
-  const collectorKey = `${PROBE_COLLECTOR}${Date.now()}`;
+  const startTime = Date.now();
+  const collectorKey = `${PROBE_COLLECTOR_PREFIX}${startTime}`;
 
   try {
-    // 1. 注入请求捕获器
-    await injectRequestCapture(mp, collectorKey);
+    await injectRequestCapture(miniProgram, collectorKey);
 
-    // 2. 执行 preSteps（登录等前置操作）
-    if (item.preSteps && item.preSteps.length > 0) {
-      console.log(`[ai-mode:probe] ${item.api_name}: 执行 ${item.preSteps.length} 个前置步骤`);
-      let prePage;
-      try {
-        prePage = await mp.reLaunch(item.preSteps[0].target_page || item.target_page);
-      } catch {
-        prePage = await mp.navigateTo(item.preSteps[0].target_page || item.target_page);
-      }
+    // 执行前置步骤（如登录）
+    if (planItem.preSteps?.length) {
+      console.log(`[probe] ${planItem.api_name}: ${planItem.preSteps.length} 个前置步骤`);
+      const preStepPage = await navigateToPage(miniProgram, planItem.preSteps[0].target_page || planItem.target_page);
       await delay(1000);
-
-      for (const step of item.preSteps) {
-        if (step.target_page && step.target_page !== item.target_page) {
-          // 如果前置步骤需要导航到不同页面
-          // (已通过上面的 reLaunch 处理第一个)
-        }
-        if (step.trigger) {
-          for (const s of step.trigger) {
-            await runOneStep(prePage, s);
-            if (s.delayAfterMs) await delay(s.delayAfterMs);
+      for (const preStep of planItem.preSteps) {
+        if (preStep.trigger) {
+          for (const triggerStep of preStep.trigger) {
+            await executeStep(preStepPage, triggerStep);
+            if (triggerStep.delayAfterMs) await delay(triggerStep.delayAfterMs);
           }
         }
-        if (step.waitMs) await delay(step.waitMs);
+        if (preStep.waitMs) await delay(preStep.waitMs);
       }
       // 清空前置步骤产生的请求记录
-      await readCaptured(mp, collectorKey);
+      await readCapturedRequests(miniProgram, collectorKey);
     }
 
-    // 3. 导航到目标页面
-    let page;
-    try {
-      page = await mp.reLaunch(item.target_page);
-    } catch (err) {
-      page = await mp.navigateTo(item.target_page);
-    }
+    // 导航到目标页面 + 执行触发操作
+    const targetPage = await navigateToPage(miniProgram, planItem.target_page);
     await delay(800);
-
-    // 4. 执行触发操作
-    for (const step of item.trigger || []) {
-      await runOneStep(page, step);
-      if (step.delayAfterMs) await delay(step.delayAfterMs);
+    for (const triggerStep of planItem.trigger || []) {
+      await executeStep(targetPage, triggerStep);
+      if (triggerStep.delayAfterMs) await delay(triggerStep.delayAfterMs);
     }
 
-    // 5. 等待请求完成，轮询收集器
-    const waitMs = item.captureWaitMs || interactionTimeoutMs;
-    const deadline = Date.now() + waitMs;
-    let captured = [];
-
+    // 轮询等待请求捕获
+    const deadline = Date.now() + (planItem.captureWaitMs || interactionTimeoutMs);
+    let capturedRequests = [];
     while (Date.now() < deadline) {
       await delay(500);
-      captured = await readCaptured(mp, collectorKey);
-      if (captured.length > 0) break;
+      capturedRequests = await readCapturedRequests(miniProgram, collectorKey);
+      if (capturedRequests.length) break;
     }
 
-    // 6. 处理结果
-    if (captured.length === 0) {
+    // 处理探测结果
+    if (!capturedRequests.length) {
       result.status = "no_request";
-      result.error = "等待窗口内未捕获到任何 wx.request 调用";
+      result.error = "未捕获到 wx.request 调用";
     } else {
-      const matched = item.matchUrlIncludes
-        ? captured.find((c) => c.request && c.request.url && c.request.url.includes(item.matchUrlIncludes))
-        : captured[0];
-      if (!matched) {
+      const matchedRequest = planItem.matchUrlIncludes
+        ? capturedRequests.find((item) => item.request?.url?.includes(planItem.matchUrlIncludes))
+        : capturedRequests[0];
+      if (!matchedRequest) {
         result.status = "url_unmatched";
-        result.error = `捕获到 ${captured.length} 条请求，但都不包含 '${item.matchUrlIncludes}'`;
-        result.request = captured.map((c) => c.request);
+        result.error = `${capturedRequests.length} 条请求均不匹配 '${planItem.matchUrlIncludes}'`;
+        result.request = capturedRequests.map((item) => item.request);
       } else {
         result.status = "ok";
-        result.request = matched.request;
-        result.response = matched.response || null;
-        // 如果还有其他匹配的请求，附加到 extras
-        const others = captured.filter((c) => c !== matched);
-        if (others.length > 0) {
-          result.extras = others.map((c) => ({ request: c.request, response: c.response }));
+        result.request = matchedRequest.request;
+        result.response = matchedRequest.response;
+        const otherRequests = capturedRequests.filter((item) => item !== matchedRequest);
+        if (otherRequests.length) {
+          result.extras = otherRequests.map((item) => ({ request: item.request, response: item.response }));
         }
       }
     }
-  } catch (err) {
+  } catch (error) {
     result.status = "error";
-    result.error = err && (err.stack || err.message || String(err));
+    result.error = error?.stack || error?.message || String(error);
   } finally {
-    result.duration_ms = Date.now() - startedAt;
+    result.duration_ms = Date.now() - startTime;
   }
-
   return result;
 }
 
@@ -365,50 +301,42 @@ export async function runProbePlan({
   mode = "launch",
   wsEndpoint,
 }) {
-  await ensureCliPort({ autoPort, cliPath, projectPath });
+  if (cliPath && !existsSync(cliPath)) throw new Error(`cliPath 不存在：${cliPath}`);
+  if (!existsSync(projectPath)) throw new Error(`projectPath 不存在：${projectPath}`);
+
   const automator = await loadAutomator();
 
-  // 自动检测：如果 mode=launch 但端口已被占用，自动切换为 connect
+  // 端口已占用时自动切换 connect 模式
   let effectiveMode = mode;
   let effectiveWsEndpoint = wsEndpoint;
-  if (mode === "launch") {
-    const portBusy = await isPortInUse(autoPort);
-    if (portBusy) {
-      console.log(`[ai-mode:probe] 端口 ${autoPort} 已被占用，自动切换为 connect 模式`);
-      effectiveMode = "connect";
-      effectiveWsEndpoint = `ws://127.0.0.1:${autoPort}`;
-    }
+  if (mode === "launch" && await isPortInUse(autoPort)) {
+    console.log(`[probe] 端口 ${autoPort} 已占用，切换 connect 模式`);
+    effectiveMode = "connect";
+    effectiveWsEndpoint = `ws://127.0.0.1:${autoPort}`;
   }
 
+  let miniProgram;
   const results = [];
-  let mp;
   try {
     if (effectiveMode === "connect") {
       const endpoint = effectiveWsEndpoint || `ws://127.0.0.1:${autoPort}`;
-      console.log(`[ai-mode:probe] 连接 ${endpoint} ...`);
-      mp = await automator.connect({ wsEndpoint: endpoint });
-      console.log("[ai-mode:probe] 连接成功");
+      console.log(`[probe] 连接 ${endpoint} ...`);
+      miniProgram = await automator.connect({ wsEndpoint: endpoint });
     } else {
-      console.log(`[ai-mode:probe] Launch 模式启动，端口 ${autoPort} ...`);
-      mp = await automator.launch({
-        cliPath,
-        projectPath,
-        port: autoPort,
-        timeout: launchTimeoutMs,
-      });
-      console.log("[ai-mode:probe] Launch 成功");
+      console.log(`[probe] Launch 端口 ${autoPort} ...`);
+      miniProgram = await automator.launch({ cliPath, projectPath, port: autoPort, timeout: launchTimeoutMs });
     }
+    console.log("[probe] 已就绪");
 
-    for (const item of plan) {
-      console.log(`[ai-mode:probe] 探测: ${item.api_name} (${item.target_page})`);
-      // eslint-disable-next-line no-await-in-loop
-      const r = await probeOne({ mp, item, interactionTimeoutMs });
-      results.push(r);
-      console.log(`[ai-mode:probe]   → ${r.status}${r.error ? ` (${r.error})` : ""}`);
+    for (const planItem of plan) {
+      console.log(`[probe] 探测: ${planItem.api_name} → ${planItem.target_page}`);
+      const probeResult = await probeOneApi({ miniProgram, planItem, interactionTimeoutMs });
+      results.push(probeResult);
+      console.log(`[probe]   ${probeResult.status}${probeResult.error ? ` (${probeResult.error})` : ""}`);
     }
   } finally {
-    if (mp && effectiveMode !== "connect") {
-      try { await mp.close(); } catch {}
+    if (miniProgram && effectiveMode !== "connect") {
+      try { await miniProgram.close(); } catch {}
     }
   }
 
@@ -417,22 +345,20 @@ export async function runProbePlan({
     project: projectPath,
     autoPort,
     mode: effectiveMode,
-    requestedMode: mode,
     results,
   };
 
   if (outputPath) {
-    const abs = resolve(outputPath);
-    await mkdir(dirname(abs), { recursive: true });
-    await writeFile(abs, JSON.stringify(payload, null, 2), "utf8");
+    const absolutePath = resolve(outputPath);
+    await mkdir(dirname(absolutePath), { recursive: true });
+    await writeFile(absolutePath, JSON.stringify(payload, null, 2), "utf8");
   }
-
   return payload;
 }
 
 export function summarize(payload) {
   const total = payload.results.length;
-  const ok = payload.results.filter((r) => r.status === "ok").length;
-  const failed = payload.results.filter((r) => r.status !== "ok");
-  return { total, ok, failed: failed.length, failures: failed };
+  const okCount = payload.results.filter((result) => result.status === "ok").length;
+  const failures = payload.results.filter((result) => result.status !== "ok");
+  return { total, ok: okCount, failed: failures.length, failures };
 }
