@@ -3,6 +3,24 @@
 本文件记录 `wxa-skills-eval` 对外发布的版本变更。
 遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范，版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.1.18] - 2026-06-11
+
+### ✨ 新增
+
+- **对外报告简化**：报告结构精简，去掉文档质量板块，卡片直接展示
+- **Skill 校验**：新增校验 `app.json` 中 `agent.skills[].description` 必须存在且非空
+- **自定义 LLM 请求头**：支持传入自定义 LLM 请求 header
+- **用例多样性提升**：`gen_intent` 倾向于使用不同 entity，生成的用例覆盖更广
+
+### ♻️ 优化
+
+- **流程重构**：LLM 请求全面并行化，评测速度大幅提升
+
+### 🐛 修复
+
+- LLM 输出不规范 JSON 导致解析失败
+- LLM 超时走到全局 abort 被误判为"手动停止"
+
 ## [0.1.17] - 2026-06-02
 
 ### ✨ 新增

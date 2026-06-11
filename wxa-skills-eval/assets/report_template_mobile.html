@@ -110,14 +110,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue"
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{display:inline-block;padding:4px 10px;border-radius:14px;font-size:11px;background:#fff1f0;color:#cf1322;border:1px solid #ffa39e}
 
-/* 文档质量 */
-.review-item{background:#fff;border:1px solid #ececec;border-radius:10px;padding:12px 14px;margin-bottom:10px}
-.review-item .rt{font-size:12px;color:#d46b08;background:#fff7e6;border:1px solid #ffe7ba;padding:2px 7px;border-radius:4px;display:inline-block;margin-bottom:6px}
-.review-item .rd{font-size:13px;color:#333;line-height:1.6;margin-bottom:6px}
-.review-item .rs{font-size:12px;color:#52c41a;background:#f6ffed;border-radius:6px;padding:8px 10px;line-height:1.6;border-left:2px solid #52c41a}
-.review-summary{background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px;margin-bottom:12px}
-.review-summary .rh{font-size:13px;font-weight:600;color:#333;margin-bottom:6px;display:flex;align-items:center;gap:6px}
-.review-summary .rb{font-size:12px;color:#555;line-height:1.7}
 
 /* ── Case 列表视图 ── */
 .case-list{display:flex;flex-direction:column;gap:8px}
@@ -163,7 +155,41 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue"
 .ck-item .ck-attr .at-reason{font-size:11px;color:#666;line-height:1.5;margin-top:2px}
 .ck-item .ck-attr .at-sugg{font-size:11px;color:#52c41a;line-height:1.5;margin-top:2px}
 
-/* 轨迹 */
+/* 轨迹（对外聊天流） */
+.chat-flow{display:flex;flex-direction:column;gap:14px;padding:2px 0}
+.chat-msg{display:flex;align-items:flex-start}
+.chat-msg.chat-user{justify-content:flex-end}
+.chat-msg.chat-assistant{justify-content:flex-start}
+.chat-msg.chat-tool{justify-content:flex-start}
+.chat-bubble{max-width:80%;padding:10px 14px;font-size:14px;line-height:1.6;word-break:break-word;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.chat-text{white-space:pre-line}
+.chat-bubble.user-bbl{background:#95ec69;color:#000;border-radius:16px 16px 4px 16px}
+.chat-bubble.asst-bbl{background:#fff;border:1px solid #eaeaea;border-radius:16px 16px 16px 4px;color:#333}
+.chat-bubble.asst-bbl.partial{border-color:#ffe7ba;background:#fffbe6}
+.chat-tool-calls{display:none;flex-direction:column;gap:6px;width:100%;max-width:80%}
+.chat-tool-calls.expanded{display:flex}
+/* 有工具调用的 assistant 气泡可点击展开 */
+.chat-bubble.asst-bbl.has-tools{cursor:pointer}
+.chat-bubble.asst-bbl.has-tools:hover{border-color:#d0d0d0}
+/* 工具调用折叠面板 */
+.tool-call-panel{border:1px solid #e5e5e5;border-radius:10px;overflow:hidden;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.tool-call-panel.tool-error{border-color:#ffccc7;background:#fff}
+.tool-call-summary{display:flex;align-items:center;gap:5px;padding:10px 12px;font-size:13px;cursor:pointer;user-select:none;list-style:none;background:#f8f9fa;transition:background .15s;flex-wrap:wrap;border-radius:10px}
+.tool-call-panel.tool-error .tool-call-summary{background:#fff1f0}
+.tool-call-summary::-webkit-details-marker{display:none}
+.tool-call-summary:hover{background:#f0f0f0}
+.tool-call-panel.tool-error .tool-call-summary:hover{background:#ffccc7}
+.tool-call-arrow{font-size:10px;transition:transform .15s;display:inline-block;margin-right:2px;color:#999}
+.tool-call-panel[open] .tool-call-arrow{transform:rotate(90deg)}
+.tool-call-name{font-weight:600;color:#333}
+.tool-call-time{font-size:11px;color:#999;font-weight:normal}
+.tool-call-detail{padding:10px 12px;border-top:1px solid #f0f0f0}
+.tool-call-panel.tool-error .tool-call-detail{border-top-color:#ffccc7}
+/* 高亮定位 */
+.chat-msg.traj-highlight .chat-bubble{box-shadow:0 0 0 2px #bae0ff}
+.chat-msg.traj-highlight .tool-call-panel{box-shadow:0 0 0 2px #bae0ff}
+
+/* 轨迹（对内 conv-list） */
 .conv-list{display:flex;flex-direction:column;gap:10px}
 .conv-item{background:#fff;border-radius:10px;padding:10px 12px;border-left:3px solid #e5e5e5;transition:box-shadow .3s,background .3s}
 .conv-item.traj-highlight{box-shadow:0 0 0 2px #bae0ff;background:#f0f7ff}
@@ -179,25 +205,30 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue"
 .conv-tool-box.tool-error{background:#fff5f5;border-color:#ffa39e}
 .conv-tool-header{font-size:12px;color:#722ed1;margin-bottom:6px}
 .conv-tool-header strong{color:#333}
-.conv-tool-error-badge{display:inline-block;background:#FA9D3B;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;margin-left:4px;vertical-align:middle}
-.conv-tool-success-badge{display:inline-block;background:#999;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;margin-left:4px;vertical-align:middle}
-.conv-call-ok-badge{display:inline-block;background:#52c41a;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;margin-left:4px;vertical-align:middle}
-.conv-call-fail-badge{display:inline-block;background:#ff4d4f;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;margin-left:4px;vertical-align:middle;cursor:help}
-.conv-tool-section{margin-top:6px;border:1px solid #f0e6ff;border-radius:6px;overflow:hidden}
-.conv-tool-section .sec-hd{padding:5px 10px;font-size:11px;color:#722ed1;background:#f9f0ff}
-.conv-tool-pre{margin:0;padding:8px 10px;font-family:"SF Mono",Monaco,"Courier New",monospace;font-size:11px;line-height:1.5;white-space:pre-wrap;word-break:break-all;background:#fff;color:#333;max-height:160px;overflow:auto}
+
+/* 共用：徽章 / 工具调用内部 / 快照 / 元素树 */
+.conv-tool-error-badge{display:inline-block;background:#ff4d4f;color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;margin-left:4px;vertical-align:middle;font-weight:500}
+.conv-tool-success-badge{display:inline-block;background:#52c41a;color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;margin-left:4px;vertical-align:middle;font-weight:500}
+.conv-call-ok-badge{display:inline-block;background:#e6f7e6;color:#52c41a;font-size:10px;padding:2px 6px;border-radius:4px;margin-left:4px;vertical-align:middle;font-weight:500;border:1px solid #b7eb8f}
+.conv-call-fail-badge{display:inline-block;background:#fff1f0;color:#ff4d4f;font-size:10px;padding:2px 6px;border-radius:4px;margin-left:4px;vertical-align:middle;cursor:help;font-weight:500;border:1px solid #ffccc7}
+.conv-tool-section{margin-top:6px;border:1px solid #f0f0f0;border-radius:6px;overflow:hidden}
+.conv-tool-section .sec-hd{padding:6px 10px;font-size:11px;color:#555;background:#fafafa;font-weight:500}
+.conv-tool-pre{margin:0;padding:8px 10px;font-family:"SF Mono",Monaco,"Courier New",monospace;font-size:11px;line-height:1.5;white-space:pre-wrap;word-break:break-all;background:#fafafa;color:#333;max-height:160px;overflow:auto;border-top:1px solid #f0f0f0}
 .conv-tool-preview-wrap{position:relative;overflow:hidden}
 .conv-tool-preview-wrap.collapsed{max-height:44px}
 .conv-tool-preview-wrap.collapsed .conv-tool-pre{max-height:none;overflow:hidden}
 .conv-tool-preview-wrap.collapsed::after{content:'';position:absolute;bottom:0;left:0;right:0;height:20px;background:linear-gradient(transparent,#fff 90%);pointer-events:none}
 .conv-tool-preview-wrap.expanded{max-height:none}
 .conv-tool-preview-wrap.expanded::after{display:none}
-.conv-tool-toggle{display:block;padding:4px 10px;font-size:11px;color:#722ed1;background:#faf5ff;border:none;border-top:1px solid #f0e6ff;cursor:pointer;text-align:left;width:100%}
-.conv-snapshot{max-width:100%;height:auto;display:block;margin-top:6px;border:1px solid #ddd;border-radius:4px;background:#fff}
-.conv-snapshot-fallback{display:inline-block;margin-top:6px;padding:10px 14px;border:1px dashed #ccc;border-radius:4px;color:#999;font-size:11px;background:#fafafa}
-.conv-etree{margin-top:6px;border:1px solid #eee;border-radius:4px;background:#fcfcfd}
-.conv-etree summary{cursor:pointer;color:#666;padding:5px 8px;font-size:11px;user-select:none}
-.conv-etree pre{margin:0;padding:6px 8px;border-top:1px solid #eee;background:#f7f7f8;max-height:180px;overflow:auto;font-size:11px;font-family:"SF Mono",Monaco,"Courier New",monospace;white-space:pre-wrap;word-break:break-word;color:#333}
+.conv-tool-toggle{display:block;padding:4px 10px;font-size:11px;color:#555;background:#fafafa;border:none;border-top:1px solid #f0f0f0;cursor:pointer;text-align:left;width:100%}
+.conv-snapshot{max-width:100%;height:auto;display:block;margin-top:6px;border:1px solid #e5e5e5;border-radius:6px;background:#fff}
+.chat-snapshot{max-width:100%;height:auto;display:block;border:1px solid #e5e5e5;border-radius:8px;background:#fff;cursor:pointer;transition:transform .15s,box-shadow .15s}
+.chat-snapshot:hover{transform:scale(1.02);box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.conv-snapshot-fallback{display:inline-block;margin-top:6px;padding:10px 14px;border:1px dashed #ccc;border-radius:6px;color:#999;font-size:11px;background:#fafafa}
+.conv-etree{margin-top:6px;border:1px solid #f0f0f0;border-radius:6px;background:#fff;overflow:hidden}
+.conv-etree summary{cursor:pointer;color:#666;padding:6px 8px;font-size:11px;user-select:none;background:#fafafa}
+.conv-etree summary:hover{color:#333;background:#f0f0f0}
+.conv-etree pre{margin:0;padding:6px 8px;border-top:1px solid #f0f0f0;background:#fafafa;max-height:180px;overflow:auto;font-size:11px;font-family:"SF Mono",Monaco,"Courier New",monospace;white-space:pre-wrap;word-break:break-word;color:#333}
 
 /* 轨迹内联标注 */
 .inline-ck{margin-top:8px;border-radius:8px;padding:8px 10px}
@@ -253,13 +284,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue"
       <button class="tab-btn active" data-tab="attribution">评测结果</button>
       <button class="tab-btn" data-tab="api-stats">接口成功率</button>
       <button class="tab-btn" data-tab="coverage">接口信息</button>
-      <button class="tab-btn" data-tab="review">文档质量</button>
     </div>
     <div class="scroll">
       <div class="pane active" id="paneOvAttribution"></div>
       <div class="pane" id="paneOvApiStats"></div>
       <div class="pane" id="paneOvCoverage"></div>
-      <div class="pane" id="paneOvReview"></div>
     </div>
   </section>
 
@@ -335,6 +364,55 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue"
   let currentSkillName = (Array.isArray(D.skills) && D.skills[0]?.name)
     || D.start?.adapter_config?.skill || '';
   let currentIdx = -2;  // 哨兵：未首次渲染。renderForCurrentHash 跑过后归一为 -1（无 case 选中）或 arrayIdx
+  // Pass@K：当前选中 attemptIdx
+  let currentAttemptIdx = 1;
+  // Pass@K：把 attempts[n-1] 的产物镜像到 c 顶层字段；通过 attempts[0] 的快照避免污染跨 case 聚合。
+  function snapshotAttemptOneIfNeeded(c){
+    if (!c || c.__originalAttempt1) return;
+    c.__originalAttempt1 = {
+      gen_trajectory: c.gen_trajectory ?? null,
+      eval: c.eval ?? null,
+      attribution: c.attribution ?? null,
+      card_page_eval: c.card_page_eval ?? null,
+      tool_calls_by_skill: c.tool_calls_by_skill ?? null,
+      view: c.view ?? null,
+    };
+  }
+  function restoreAttemptOne(c){
+    if (!c || !c.__originalAttempt1) return;
+    const o = c.__originalAttempt1;
+    c.gen_trajectory = o.gen_trajectory;
+    c.eval = o.eval;
+    c.attribution = o.attribution;
+    c.card_page_eval = o.card_page_eval;
+    c.tool_calls_by_skill = o.tool_calls_by_skill;
+    c.view = o.view;
+  }
+  function applyAttemptToCase(c, attemptIdx){
+    if (!c) return;
+    const list = Array.isArray(c.attempts) ? c.attempts : [];
+    if (list.length === 0) return;
+    snapshotAttemptOneIfNeeded(c);
+    if (typeof cases !== 'undefined' && Array.isArray(cases)) {
+      for (const other of cases) {
+        if (other && other !== c && other.__originalAttempt1) restoreAttemptOne(other);
+      }
+    }
+    const target = list.find(a => Number(a.attemptIdx) === Number(attemptIdx)) || list[0];
+    if (!target) return;
+    c.gen_trajectory = target.gen_trajectory ?? null;
+    c.eval = target.eval ?? null;
+    c.attribution = target.attribution ?? null;
+    c.card_page_eval = target.card_page_eval ?? null;
+    c.tool_calls_by_skill = target.tool_calls_by_skill ?? null;
+    c.view = target.view ?? null;
+  }
+  function caseAttemptOneView(c){
+    if (!c) return null;
+    if (c.__originalAttempt1) return c.__originalAttempt1.view ?? null;
+    return c.view ?? null;
+  }
+  let currentTrajIdx = null;  // 当前 hash 中的 trajectory 定位；不参与 case 视图身份判定
   let activeOvTab = 'attribution';
   let activeCdTab = 'eval';
 
@@ -344,6 +422,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue"
 
   // ── 工具函数 ──
   function h(s){return s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+  function renderContent(s){return h(typeof s==='string'?s.trim():s)}
   function pct(v){return Math.round((v||0)*100)}
   function fmtNum(n){
     if(n==null||isNaN(n)) return '-';
@@ -415,10 +494,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue"
     getVisibleAttrItems(c).forEach(it=>levels.add(it.level));
     return levels;
   }
-  function buildSnapshotPrefix(idx){
+  function buildSnapshotPrefix(idx, attemptIdx){
+    const a = Number.isFinite(attemptIdx) && attemptIdx > 0 ? attemptIdx : 0;
+    const tail = a > 0 ? `cases/${idx}/attempts/${a}/` : `cases/${idx}/`;
     return currentSkillName
-      ? `skills/${encodeURIComponent(currentSkillName)}/cases/${idx}/`
-      : `cases/${idx}/`;
+      ? `skills/${encodeURIComponent(currentSkillName)}/${tail}`
+      : tail;
   }
   function jsonPreview(raw, maxLines=3){
     if(!raw||typeof raw!=='string') return {preview:'',full:'',overflow:false};
@@ -430,11 +511,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue"
   }
   function strokeOffset(rate,r){const c=2*Math.PI*r;return c-c*rate}
   function computeTaskSummary(){
-    const rates=cases.map(c=>casePassRate(c));
+    // Pass@K：跨 case 聚合一律走 attempts[0] 快照，避免某个 case 切换 attempt 后污染整体大盘。
+    const viewOf=(c)=>caseAttemptOneView(c);
+    const rates=cases.map(c=>(viewOf(c)?.pass_rate??0));
     const avgRate=rates.length?rates.reduce((a,b)=>a+b,0)/rates.length:0;
     let l1=0,l3=0;
     cases.forEach(c=>{
-      getVisibleAttrItems(c).forEach(it=>{if(it.level==='L1')l1++;else if(it.level==='L3')l3++});
+      (viewOf(c)?.visible_attr_items||[]).forEach(it=>{if(it.level==='L1')l1++;else if(it.level==='L3')l3++});
     });
     return {avgRate, l1, l3, defectCount:l1+l3, totalCases:cases.length};
   }
@@ -570,7 +653,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue"
         if(st.failures&&st.failures.length){
           html+=`<details style="margin:6px 0 2px;font-size:11px;cursor:pointer"><summary style="color:#1890ff">${st.failures.length} 个失败调用</summary><div style="margin-top:6px;max-height:240px;overflow:auto">`;
           for(const f of st.failures){
-            html+=`<div style="padding:6px 8px;border:1px solid #f0f0f0;border-radius:4px;margin-bottom:4px;background:#fafafa"><div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px;font-size:11px;color:#666"><span>Skill: ${h(f.skill)}</span><span>Case: ${f.caseIdx}</span><span style="padding:1px 5px;border-radius:3px;font-size:10px;font-weight:500;${f.errorType==='api_not_found'?'background:#fff3e0;color:#e65100':f.errorType==='invoke_error'?'background:#fbe9e7;color:#c62828':'background:#f5f5f5;color:#666'}">${f.errorType==='api_not_found'?'API未找到':f.errorType==='invoke_error'?'调用失败':'其他'}</span></div><details style="margin:2px 0"><summary style="font-size:10px;color:#999">请求参数</summary><pre style="font-size:10px;background:#f5f5f5;padding:4px;border-radius:3px;max-height:100px;overflow:auto;white-space:pre-wrap;word-break:break-all">${h(JSON.stringify(f.arguments,null,2))}</pre></details><details style="margin:2px 0"><summary style="font-size:10px;color:#999">返回内容</summary><pre style="font-size:10px;background:#f5f5f5;padding:4px;border-radius:3px;max-height:100px;overflow:auto;white-space:pre-wrap;word-break:break-all">${h(f.response?.content||'')}</pre></details></div>`;
+            const canJump=Number.isFinite(Number(f.caseIdx))&&Number.isFinite(Number(f.msgIdx));
+            const caseHtml=canJump
+              ?`<a href="#case-${Number(f.caseIdx)}&traj=${Number(f.msgIdx)}" class="api-failure-case-link" data-case-idx="${Number(f.caseIdx)}" data-traj-idx="${Number(f.msgIdx)}" style="color:#1890ff;text-decoration:none;border-bottom:1px dashed #1890ff">Case ${h(f.caseIdx)} ↗</a>`
+              :`<span>Case: ${h(f.caseIdx)}</span>`;
+            html+=`<div style="padding:6px 8px;border:1px solid #f0f0f0;border-radius:4px;margin-bottom:4px;background:#fafafa"><div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px;font-size:11px;color:#666"><span>Skill: ${h(f.skill)}</span><span>${caseHtml}</span><span style="padding:1px 5px;border-radius:3px;font-size:10px;font-weight:500;${f.errorType==='api_not_found'?'background:#fff3e0;color:#e65100':f.errorType==='invoke_error'?'background:#fbe9e7;color:#c62828':'background:#f5f5f5;color:#666'}">${f.errorType==='api_not_found'?'API未找到':f.errorType==='invoke_error'?'调用失败':'其他'}</span></div><details style="margin:2px 0"><summary style="font-size:10px;color:#999">请求参数</summary><pre style="font-size:10px;background:#f5f5f5;padding:4px;border-radius:3px;max-height:100px;overflow:auto;white-space:pre-wrap;word-break:break-all">${h(JSON.stringify(f.arguments,null,2))}</pre></details><details style="margin:2px 0"><summary style="font-size:10px;color:#999">返回内容</summary><pre style="font-size:10px;background:#f5f5f5;padding:4px;border-radius:3px;max-height:100px;overflow:auto;white-space:pre-wrap;word-break:break-all">${h(f.response?.content||'')}</pre></details></div>`;
           }
           html+=`</div></details>`;
         }
@@ -629,55 +716,57 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue"
     if(cov.uncovered.length){
       html+=`<div class="section"><h3>本次评测未覆盖到的接口（${cov.uncovered.length}）</h3><div class="chips">${cov.uncovered.map(n=>`<span class="chip">${h(n)}</span>`).join('')}</div></div>`;
     }
-    }
     el.innerHTML=html;
   }
-  function renderOvReview(){
-    const el=document.getElementById('paneOvReview');
-    if(!review){
-      el.innerHTML='<div class="empty">暂无文档质量数据</div>';
-      return;
-    }
-    let html='';
-    if(review.summary){
-      html+=`<div class="review-summary"><div class="rh">📋 总结</div><div class="rb">${h(review.summary)}</div></div>`;
-    }
-    if(!review.has_issues){
-      html+='<div class="empty-pass">✅ 文档质量良好，未发现问题</div>';
-      el.innerHTML=html;
-      return;
-    }
-    const issues=review.issues||[];
-    issues.forEach(is=>{
-      html+=`<div class="review-item">
-        ${is.type?`<span class="rt">${h(is.type)}${is.api?' · '+h(is.api):''}</span>`:''}
-        <div class="rd">${h(is.description||'')}</div>
-        ${is.suggestion?`<div class="rs">💡 ${h(is.suggestion)}</div>`:''}
-      </div>`;
-    });
-    el.innerHTML=html;
-  }
-
   // ── 用例列表 ──
   function renderCaseListMobile(){
     const el=document.getElementById('caseListMobile');
     // 渲染**所有** case，编号一律用 c.idx —— 与任务侧 / hash / PC 报告对齐
     el.innerHTML=cases.map((c,i)=>{
       const isVisible=caseIsVisible(c);
-      const rate=isVisible?casePassRate(c):null;
+      const attemptsArr=Array.isArray(c.attempts)?c.attempts:[];
+      const failedCount=isVisible?caseFailedCount(c):0;
+      // K>1：row 标红依据"任意 attempt 有失败 checklist"，与逐 attempt 徽带口径一致；
+      // K=1：沿用 caseFailedCount > 0。
+      const hasIssue=isVisible && (
+        attemptsArr.length>1
+          ? attemptsArr.some(a=>{
+              const v=a&&a.view;
+              return v && v.is_complete && Number(v.failed_count||0)>0;
+            })
+          : failedCount>0
+      );
       const levels=isVisible?caseAttrLevels(c):new Set();
-      const cls=!isVisible?' incomplete':(rate<1?' fail':'');
+      const cls=!isVisible?' incomplete':(hasIssue?' fail':'');
       const tagsHtml=[...levels].sort().map(l=>`<span class="ci-tag ${l}">${levelName(l)}</span>`).join('');
-      const title=c.gen_trajectory?.brief_title||c.gen_intent?.brief_title||'';
+      const title=c.gen_trajectory?.brief_title||c.gen_intent?.brief_title||(c.gen_intent?.intent||'').slice(0,40)||'';
       const expandTag=caseHasExpand(c)?'<span class="tag-expand">负例-边界测试</span>':'';
-      const rateLabel=isVisible?`${pct(rate)}%`:'⚠ 未完成';
+      // 与 PC 报告对齐：K=1 用 ✓ / ✗ N（不再显示百分比，避免 view 截断与 c.eval 全集口径不一致）；
+      // K>1 平铺一排 ✓/✗/⚠。流程未跑完保持 ⚠ 未完成 单标。
+      let rateHtml;
+      if(!isVisible){
+        rateHtml=`⚠ 未完成`;
+      } else if(attemptsArr.length<=1){
+        rateHtml=failedCount>0?`✗ ${failedCount}`:`✓`;
+      } else {
+        rateHtml='<span style="display:inline-flex;gap:3px;justify-content:flex-end">'
+          +attemptsArr.map(a=>{
+            const v=a&&a.view;
+            if(!v||!v.is_complete) return `<span title="Attempt ${a.attemptIdx}：未完成" style="color:#bfbfbf">⚠</span>`;
+            const fc=Number(v.failed_count||0);
+            return fc>0
+              ?`<span title="Attempt ${a.attemptIdx}：错 ${fc}" style="color:#fa541c">✗</span>`
+              :`<span title="Attempt ${a.attemptIdx}：全通过" style="color:#07C160">✓</span>`;
+          }).join('')
+          +'</span>';
+      }
       return `<div class="case-item${cls}" data-idx="${i}">
         <span class="dot"></span>
         <div class="ci-body">
           <div class="ci-title">Case ${c.idx}${title?' · '+h(title):''}${expandTag}</div>
           ${tagsHtml?`<div class="ci-tags">${tagsHtml}</div>`:''}
         </div>
-        <div class="ci-rate">${rateLabel}</div>
+        <div class="ci-rate">${rateHtml}</div>
       </div>`;
     }).join('');
     el.querySelectorAll('.case-item').forEach(it=>{
@@ -689,12 +778,37 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue"
   // 协议见 docs/eval/ARCHITECTURE.md「报告 Hash 深链协议」。
   // 视图状态完全派生自 location.hash：
   //   #case-{c.idx} → 选中并切到 viewCaseDetail
+  //   #case-{c.idx}&traj={msgIdx} → 选中 case 后切到轨迹 Tab 并定位上下文
   //   其他/空      → 若当前在 viewCaseDetail，切回 viewCases；其他视图（viewSummary 等）保持
   // 用户操作（点 case-tag / 点 case 列表项 / 点返回）只通过 navigateToCase 写 hash，
   // 渲染由 renderForCurrentHash 同步执行（idempotency guard 保证后续 hashchange 不重复渲染）。
   const HASH_RE = /(?:^#|&)case[-=](\d+)/i;
-  function navigateToCase(caseIdxValue){
-    const newHash = (caseIdxValue == null) ? '' : '#case-' + caseIdxValue;
+  const TRAJ_HASH_RE = /(?:^#|&)traj[-=](\d+)/i;
+  function parseHashTarget(){
+    const hash = location.hash || '';
+    const m = hash.match(HASH_RE);
+    const tm = hash.match(TRAJ_HASH_RE);
+    return {
+      caseIdx: m ? Number(m[1]) : null,
+      trajIdx: tm ? Number(tm[1]) : null
+    };
+  }
+  function scrollToTrajectory(trajIdx){
+    if(!Number.isFinite(Number(trajIdx))) return;
+    activeCdTab = 'traj';
+    setActiveTab('caseDetailTabs', 'traj');
+    setActivePane('paneCd', 'traj');
+    setTimeout(()=>{
+      const target=document.getElementById('traj-'+Number(trajIdx));
+      if(!target) return;
+      target.scrollIntoView({behavior:'smooth',block:'center'});
+      target.classList.add('traj-highlight');
+      setTimeout(()=>target.classList.remove('traj-highlight'),2500);
+    },120);
+  }
+  function navigateToCase(caseIdxValue, opts){
+    const trajPart = opts && Number.isFinite(Number(opts.trajIdx)) ? '&traj=' + Number(opts.trajIdx) : '';
+    const newHash = (caseIdxValue == null) ? '' : '#case-' + caseIdxValue + trajPart;
     if (location.hash !== newHash) {
       if (newHash) {
         location.hash = newHash;
@@ -709,15 +823,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue"
     renderForCurrentHash();
   }
   function renderForCurrentHash(){
-    const m = (location.hash || '').match(HASH_RE);
-    const arrayIdx = m ? cases.findIndex(c => Number(c.idx) === Number(m[1])) : -1;
-    if (arrayIdx === currentIdx) return;
+    const target = parseHashTarget();
+    const arrayIdx = target.caseIdx != null ? cases.findIndex(c => Number(c.idx) === Number(target.caseIdx)) : -1;
+    if (arrayIdx === currentIdx) {
+      currentTrajIdx = target.trajIdx;
+      scrollToTrajectory(target.trajIdx);
+      return;
+    }
     const wasInCaseDetail = currentIdx >= 0;
     currentIdx = arrayIdx;  // 一次性归一：>=0 进入 case detail，-1 表示无选中
+    currentTrajIdx = target.trajIdx;
     if (arrayIdx >= 0) {
-      activeCdTab = 'eval';
+      activeCdTab = Number.isFinite(Number(currentTrajIdx)) ? 'traj' : 'eval';
       renderCaseDetail();
       switchView('viewCaseDetail');
+      scrollToTrajectory(currentTrajIdx);
     } else if (wasInCaseDetail) {
       switchView('viewCases');
     }
@@ -744,6 +864,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue"
       }
     },120);
   }
+  document.addEventListener('click',e=>{
+    const link=e.target.closest('.api-failure-case-link');
+    if(!link)return;
+    e.preventDefault();
+    const caseIdx=Number(link.dataset.caseIdx);
+    const trajIdx=Number(link.dataset.trajIdx);
+    if(!Number.isFinite(caseIdx))return;
+    navigateToCase(caseIdx,{trajIdx});
+  });
 
   // ── Case 详情：评测结果 Pane ──
   function renderCdEval(){
@@ -861,7 +990,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue"
     const items=c.eval?.eval_result?.items||[];
     const attrItems=getVisibleAttrItems(c);
     const l3Items=[];  // L4 不再展示
-    const snapshotPrefix=buildSnapshotPrefix(c.idx);
+    const snapshotPrefix=buildSnapshotPrefix(c.idx, currentAttemptIdx);
 
     // 构建 evidence -> 失败/归因 映射（与 PC 版一致）
     const failedChecks=items.filter(it=>it.score!=null&&it.score<it.max_score&&!it.unevaluable);
@@ -955,7 +1084,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue"
       el.innerHTML='<div class="empty">暂无对话轨迹</div>';
       return;
     }
-    let html='<div class="conv-list">';
+    // 对内报告（debug）用 conv-list，对外报告用 chat-flow
+    const isDebugMode=!!c.view?.debug;
+    let html=isDebugMode?'<div class="conv-list">':'<div class="chat-flow">';
     const rendered=new Set();
     // 工具调用质量判定（callStatus）查找表
     const callStatusByKey=new Map();
@@ -968,114 +1099,305 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue"
       if(cs.status==='ok'){
         return `<span class="conv-call-ok-badge" title="工具调用：成功">工具调用：成功</span>`;
       }
-      // 折叠所有空白为单个空格，避免 title 渲染出多行
       const reason=h(String(cs.reason||cs.status).replace(/\s+/g,' ').trim());
       return `<span class="conv-call-fail-badge" title="${reason}">工具调用：失败</span>`;
     };
+    let pendingToolCalls=null;
     trajectory.forEach((msg,mi)=>{
       if(rendered.has(mi)) return;
       const role=msg.role||'unknown';
-      // assistant with tool_calls
+
+      // 对外报告：遇到非 assistant 消息时，先 flush 挂起的 tool_calls
+      if(pendingToolCalls && !isDebugMode){
+        const isNextAssistant=role==='assistant' && !msg.partial;
+        if(!isNextAssistant){
+          html+=`<div class="chat-msg chat-assistant" style="flex-direction:column;align-items:flex-start;gap:4px">
+            ${pendingToolCalls.mergedAnchors}
+            <div class="chat-bubble asst-bbl has-tools" data-target="${pendingToolCalls.expandId}">
+              <div class="chat-text">⚡ 工具调用</div>
+            </div>
+            ${pendingToolCalls.snapshotHtml}
+            <div class="chat-tool-calls" id="${pendingToolCalls.expandId}">${pendingToolCalls.toolCallsHtml}${pendingToolCalls.inlineAttr}</div>
+          </div>`;
+          pendingToolCalls=null;
+        }
+      }
+
+      // ── assistant with tool_calls ──
       if(msg.tool_calls&&msg.tool_calls.length){
-        let body='';
         const mergedIndices=[];
-        if(msg.content) body+=`<div class="conv-text">${h(msg.content)}</div>`;
-        msg.tool_calls.forEach((tc,tci)=>{
-          const fn=tc.function||tc;
-          const callId=tc.id||'';
-          let toolResp=null;
-          let toolRespIdx=null;
-          // 严格 id 匹配窗口：±10 步（与 call_status.js findResponseForCall 一致）
-          for(let j=mi+1;j<trajectory.length&&j<=mi+10;j++){
-            if(trajectory[j].role==='tool'&&(trajectory[j].tool_call_id===callId||(!callId&&trajectory[j].role==='tool'))){
-              toolResp=trajectory[j]; toolRespIdx=j; rendered.add(j); break;
-            }
-          }
-          if(!toolResp){
-            for(let j=mi+1;j<trajectory.length;j++){
-              if(trajectory[j].role==='tool'&&!rendered.has(j)){
+        if(isDebugMode){
+          // ── 对内：conv-item + conv-tool-box ──
+          let body='';
+          if(msg.content) body+=`<div class="conv-text">${h(msg.content)}</div>`;
+          msg.tool_calls.forEach((tc,tci)=>{
+            const fn=tc.function||tc;
+            const callId=tc.id||'';
+            let toolResp=null, toolRespIdx=null;
+            for(let j=mi+1;j<trajectory.length&&j<=mi+10;j++){
+              if(trajectory[j].role==='tool'&&(trajectory[j].tool_call_id===callId||(!callId&&trajectory[j].role==='tool'))){
                 toolResp=trajectory[j]; toolRespIdx=j; rendered.add(j); break;
               }
             }
+            if(!toolResp){
+              for(let j=mi+1;j<trajectory.length;j++){
+                if(trajectory[j].role==='tool'&&!rendered.has(j)){
+                  toolResp=trajectory[j]; toolRespIdx=j; rendered.add(j); break;
+                }
+              }
+            }
+            if(toolRespIdx!=null) mergedIndices.push(toolRespIdx);
+            const args=fn.arguments||'';
+            const respContent=toolResp?(typeof toolResp.content==='string'?toolResp.content:JSON.stringify(toolResp.content,null,2)):'';
+            const respFull=toolResp?.structuredContent?(typeof toolResp.structuredContent==='string'?toolResp.structuredContent:JSON.stringify(toolResp.structuredContent,null,2)):'';
+            const argsP=jsonPreview(args);
+            const respP=jsonPreview(respFull||respContent);
+            const uid1=mi+'-'+tci+'-in', uid2=mi+'-'+tci+'-out';
+            const isErr=toolResp?.isError;
+            body+=`<div class="conv-tool-box${isErr?' tool-error':''}">
+              <div class="conv-tool-header">⚡ <strong>${h(fn.name||'')}</strong>${renderCallStatusBadge(mi,tci)}${isErr?'<span class="conv-tool-error-badge">返回结果: Error</span>':'<span class="conv-tool-success-badge">返回结果: Success</span>'}</div>
+              ${renderToolSection('📥 输入参数', argsP, uid1)}
+              ${renderToolSection('📤 输出参数', respP, uid2)}
+              ${(toolResp?.snapshot_data_url||toolResp?.snapshot_path)?`<img class="conv-snapshot" src="${h(toolResp.snapshot_data_url||snapshotPrefix+toolResp.snapshot_path)}" alt="快照" onerror="this.outerHTML='<span class=&quot;conv-snapshot-fallback&quot;>截图缺失</span>'">`:''}
+              ${toolResp?.element_tree?`<details class="conv-etree"><summary>元素树</summary><pre>${h(toolResp.element_tree)}</pre></details>`:''}
+            </div>`;
+          });
+          let inlineAttr=renderInlineChecklist(mi);
+          mergedIndices.forEach(idx=>{ inlineAttr+=renderInlineChecklist(idx); });
+          const nextIdx=mi+msg.tool_calls.length+1;
+          if(!inlineAttr && nextIdx<trajectory.length && !rendered.has(nextIdx)){
+            inlineAttr=renderInlineChecklist(nextIdx);
           }
-          if(toolRespIdx!=null) mergedIndices.push(toolRespIdx);
-          const args=fn.arguments||'';
-          const respContent=toolResp?(typeof toolResp.content==='string'?toolResp.content:JSON.stringify(toolResp.content,null,2)):'';
-          const respFull=toolResp?.structuredContent?(typeof toolResp.structuredContent==='string'?toolResp.structuredContent:JSON.stringify(toolResp.structuredContent,null,2)):'';
-          const argsP=jsonPreview(args);
-          const respP=jsonPreview(respFull||respContent);
-          const uid1=mi+'-'+tci+'-in', uid2=mi+'-'+tci+'-out';
-          const isErr=toolResp?.isError;
-          body+=`<div class="conv-tool-box${isErr?' tool-error':''}">
-            <div class="conv-tool-header">⚡ <strong>${h(fn.name||'')}</strong>${renderCallStatusBadge(mi,tci)}${isErr?'<span class="conv-tool-error-badge">返回结果: Error</span>':'<span class="conv-tool-success-badge">返回结果: Success</span>'}</div>
-            ${renderToolSection('📥 输入参数', argsP, uid1)}
-            ${renderToolSection('📤 输出参数', respP, uid2)}
-            ${(toolResp?.snapshot_data_url||toolResp?.snapshot_path)?`<img class="conv-snapshot" src="${h(toolResp.snapshot_data_url||snapshotPrefix+toolResp.snapshot_path)}" alt="快照" onerror="this.outerHTML='<span class=&quot;conv-snapshot-fallback&quot;>截图缺失</span>'">`:''}
-            ${toolResp?.element_tree?`<details class="conv-etree"><summary>元素树</summary><pre>${h(toolResp.element_tree)}</pre></details>`:''}
+          const mergedAnchors=mergedIndices.map(idx=>`<span id="traj-${idx}"></span>`).join('');
+          html+=`<div class="conv-item role-tool" id="traj-${mi}">
+            ${mergedAnchors}
+            <div class="conv-role tool">Tool Call <span style="color:#ccc;font-size:10px;font-weight:400">#${mi}</span></div>
+            ${body}
+            ${inlineAttr}
           </div>`;
-        });
-        // 渲染归因：本索引 + 被合并的 tool response 索引
-        let inlineAttr=renderInlineChecklist(mi);
-        mergedIndices.forEach(idx=>{ inlineAttr+=renderInlineChecklist(idx); });
-        // fallback: 归因可能挂在紧跟的下一条(如 assistant 回复)
-        const nextIdx=mi+msg.tool_calls.length+1;
-        if(!inlineAttr && nextIdx<trajectory.length && !rendered.has(nextIdx)){
-          inlineAttr=renderInlineChecklist(nextIdx);
+        } else {
+          // ── 对外：assistant 气泡 + 右侧小箭头展开工具调用 ──
+          let toolCallsHtml='';
+          let snapshotHtml='';
+          const toolNames=[];
+          msg.tool_calls.forEach((tc,tci)=>{
+            const fn=tc.function||tc;
+            const callId=tc.id||'';
+            toolNames.push(fn.name||'');
+            let toolResp=null, toolRespIdx=null;
+            for(let j=mi+1;j<trajectory.length&&j<=mi+10;j++){
+              if(trajectory[j].role==='tool'&&(trajectory[j].tool_call_id===callId||(!callId&&trajectory[j].role==='tool'))){
+                toolResp=trajectory[j]; toolRespIdx=j; rendered.add(j); break;
+              }
+            }
+            if(!toolResp){
+              for(let j=mi+1;j<trajectory.length;j++){
+                if(trajectory[j].role==='tool'&&!rendered.has(j)){
+                  toolResp=trajectory[j]; toolRespIdx=j; rendered.add(j); break;
+                }
+              }
+            }
+            if(toolRespIdx!=null) mergedIndices.push(toolRespIdx);
+            const args=fn.arguments||'';
+            const respContent=toolResp?(typeof toolResp.content==='string'?toolResp.content:JSON.stringify(toolResp.content,null,2)):'';
+            const respFull=toolResp?.structuredContent?(typeof toolResp.structuredContent==='string'?toolResp.structuredContent:JSON.stringify(toolResp.structuredContent,null,2)):'';
+            const argsP=jsonPreview(args);
+            const respP=jsonPreview(respFull||respContent);
+            const uid1=mi+'-'+tci+'-in', uid2=mi+'-'+tci+'-out';
+            const isErr=toolResp?.isError;
+            toolCallsHtml+=`<details class="tool-call-panel${isErr?' tool-error':''}">
+              <summary class="tool-call-summary">
+                <span class="tool-call-arrow">▶</span>
+                <span class="tool-call-name">⚡ ${h(fn.name||'')}</span>
+                ${renderCallStatusBadge(mi,tci)}
+                ${isErr?'<span class="conv-tool-error-badge">Error</span>':'<span class="conv-tool-success-badge">Success</span>'}
+              </summary>
+              <div class="tool-call-detail">
+                ${renderToolSection('📥 输入参数', argsP, uid1)}
+                ${renderToolSection('📤 输出参数', respP, uid2)}
+                ${(toolResp?.snapshot_data_url||toolResp?.snapshot_path)?`<img class="conv-snapshot" src="${h(toolResp.snapshot_data_url||snapshotPrefix+toolResp.snapshot_path)}" alt="快照" onerror="this.outerHTML='<span class=&quot;conv-snapshot-fallback&quot;>截图缺失</span>'">`:''}
+                ${toolResp?.element_tree?`<details class="conv-etree"><summary>元素树</summary><pre>${h(toolResp.element_tree)}</pre></details>`:''}
+              </div>
+            </details>`;
+            // 收集卡片截图，用于在气泡下方直接渲染
+            if(toolResp?.snapshot_data_url||toolResp?.snapshot_path){
+              snapshotHtml+=`<img class="chat-snapshot" src="${h(toolResp.snapshot_data_url||snapshotPrefix+toolResp.snapshot_path)}" alt="快照" onerror="this.outerHTML='<span class=&quot;conv-snapshot-fallback&quot;>截图缺失</span>'">`;
+            }
+          });
+          let inlineAttr=renderInlineChecklist(mi);
+          mergedIndices.forEach(idx=>{ inlineAttr+=renderInlineChecklist(idx); });
+          const nextIdx=mi+msg.tool_calls.length+1;
+          if(!inlineAttr && nextIdx<trajectory.length && !rendered.has(nextIdx)){
+            inlineAttr+=renderInlineChecklist(nextIdx);
+          }
+          const mergedAnchors=mergedIndices.map(idx=>`<span id="traj-${idx}"></span>`).join('');
+          const expandId='tool-expand-'+mi;
+          if(msg.content){
+            if(pendingToolCalls){
+              html+=`<div class="chat-msg chat-assistant" id="traj-${mi}" style="flex-direction:column;align-items:flex-start;gap:4px">
+                ${pendingToolCalls.mergedAnchors}${mergedAnchors}
+                <div class="chat-bubble asst-bbl has-tools" data-target="${pendingToolCalls.expandId}">
+                  <div class="chat-text">${renderContent(msg.content)}</div>
+                </div>
+                ${pendingToolCalls.snapshotHtml}${snapshotHtml}
+                <div class="chat-tool-calls" id="${pendingToolCalls.expandId}">${pendingToolCalls.toolCallsHtml}${toolCallsHtml}${pendingToolCalls.inlineAttr}${inlineAttr}</div>
+              </div>`;
+              pendingToolCalls=null;
+            } else {
+              html+=`<div class="chat-msg chat-assistant" id="traj-${mi}" style="flex-direction:column;align-items:flex-start;gap:4px">
+                ${mergedAnchors}
+                <div class="chat-bubble asst-bbl has-tools" data-target="${expandId}">
+                  <div class="chat-text">${renderContent(msg.content)}</div>
+                </div>
+                ${snapshotHtml}
+                <div class="chat-tool-calls" id="${expandId}">${toolCallsHtml}${inlineAttr}</div>
+              </div>`;
+            }
+          } else {
+            if(pendingToolCalls){
+              pendingToolCalls.toolCallsHtml+=toolCallsHtml;
+              pendingToolCalls.inlineAttr+=inlineAttr;
+              pendingToolCalls.mergedAnchors+=mergedAnchors;
+              pendingToolCalls.snapshotHtml+=snapshotHtml;
+            } else {
+              pendingToolCalls={expandId, toolCallsHtml, inlineAttr, mergedAnchors, snapshotHtml};
+            }
+          }
         }
-        const mergedAnchors=mergedIndices.map(idx=>`<span id="traj-${idx}"></span>`).join('');
-        html+=`<div class="conv-item role-tool" id="traj-${mi}">
-          ${mergedAnchors}
-          <div class="conv-role tool">Tool Call <span style="color:#ccc;font-size:10px;font-weight:400">#${mi}</span></div>
-          ${body}
-          ${inlineAttr}
-        </div>`;
         return;
       }
-      // independent tool message
+
+      // ── independent tool message ──
       if(role==='tool'){
         const isErr=msg.isError;
-        let body='';
-        if(isErr) body+=`<div class="conv-tool-error-badge" style="margin-bottom:4px">返回结果: Error</div>`;
-        else body+=`<div class="conv-tool-success-badge" style="margin-bottom:4px">返回结果: Success</div>`;
-        if(msg.structuredContent){
-          const smry=typeof msg.content==='string'?msg.content:JSON.stringify(msg.content,null,2);
-          const full=typeof msg.structuredContent==='string'?msg.structuredContent:JSON.stringify(msg.structuredContent,null,2);
-          body+=`<div class="conv-text">${h(smry)}</div>
-            <details class="conv-etree"><summary>查看完整输出</summary><pre>${h(full)}</pre></details>`;
+        if(isDebugMode){
+          // ── 对内 ──
+          let body='';
+          if(isErr) body+=`<div class="conv-tool-error-badge" style="margin-bottom:4px">返回结果: Error</div>`;
+          else body+=`<div class="conv-tool-success-badge" style="margin-bottom:4px">返回结果: Success</div>`;
+          if(msg.structuredContent){
+            const smry=typeof msg.content==='string'?msg.content:JSON.stringify(msg.content,null,2);
+            const full=typeof msg.structuredContent==='string'?msg.structuredContent:JSON.stringify(msg.structuredContent,null,2);
+            body+=`<div class="conv-text">${h(smry)}</div>
+              <details class="conv-etree" style="margin-top:4px"><summary>查看完整输出</summary><pre>${h(full)}</pre></details>`;
+          } else {
+            const content=typeof msg.content==='string'?msg.content:JSON.stringify(msg.content,null,2);
+            body+=`<div class="conv-text">${renderContent(content)}</div>`;
+          }
+          if(msg.snapshot_data_url||msg.snapshot_path){
+            const src=msg.snapshot_data_url||snapshotPrefix+msg.snapshot_path;
+            body+=`<img class="conv-snapshot" src="${h(src)}" alt="快照" onerror="this.outerHTML='<span class=&quot;conv-snapshot-fallback&quot;>截图缺失</span>'">`;
+          }
+          if(msg.element_tree){
+            body+=`<details class="conv-etree"><summary>元素树</summary><pre>${h(msg.element_tree)}</pre></details>`;
+          }
+          html+=`<div class="conv-item role-tool" id="traj-${mi}" ${isErr?'style="border-left:3px solid #ff4d4f"':''}>
+            <div class="conv-role tool">tool${msg.tool_call_id?' (response)':''} <span style="color:#ccc;font-size:10px;font-weight:400">#${mi}</span></div>
+            ${body}
+            ${renderInlineChecklist(mi)}
+          </div>`;
         } else {
-          const content=typeof msg.content==='string'?msg.content:JSON.stringify(msg.content,null,2);
-          body+=`<div class="conv-text">${h(content)}</div>`;
+          // ── 对外：独立工具响应，默认隐藏，点击展开 ──
+          let detailHtml='';
+          if(msg.structuredContent){
+            const smry=typeof msg.content==='string'?msg.content:JSON.stringify(msg.content,null,2);
+            const full=typeof msg.structuredContent==='string'?msg.structuredContent:JSON.stringify(msg.structuredContent,null,2);
+            detailHtml=`<div class="chat-text" style="color:#333">${renderContent(smry)}</div>
+              <details class="conv-etree" style="margin-top:6px"><summary>查看完整输出</summary><pre>${h(full)}</pre></details>`;
+          } else {
+            const content=typeof msg.content==='string'?msg.content:JSON.stringify(msg.content,null,2);
+            detailHtml=`<div class="chat-text" style="color:#333">${renderContent(content)}</div>`;
+          }
+          if(msg.snapshot_data_url||msg.snapshot_path){
+            detailHtml+=`<img class="conv-snapshot" src="${h(msg.snapshot_data_url||snapshotPrefix+msg.snapshot_path)}" alt="快照" onerror="this.outerHTML='<span class=&quot;conv-snapshot-fallback&quot;>截图缺失</span>'">`;
+          }
+          if(msg.element_tree){
+            detailHtml+=`<details class="conv-etree"><summary>元素树</summary><pre>${h(msg.element_tree)}</pre></details>`;
+          }
+          const toolExpandId='tool-expand-'+mi;
+          const indSnapshot=(msg.snapshot_data_url||msg.snapshot_path)?`<img class="chat-snapshot" src="${h(msg.snapshot_data_url||snapshotPrefix+msg.snapshot_path)}" alt="快照" onerror="this.outerHTML='<span class=&quot;conv-snapshot-fallback&quot;>截图缺失</span>'">`:'';
+          html+=`<div class="chat-msg chat-assistant" id="traj-${mi}" style="flex-direction:column;align-items:flex-start;gap:4px">
+            <div class="chat-bubble asst-bbl has-tools" data-target="${toolExpandId}">
+              <div class="chat-text">${isErr?'❌':'⚡'} tool response</div>
+            </div>
+            ${indSnapshot}
+            <div class="chat-tool-calls" id="${toolExpandId}">
+              <details class="tool-call-panel${isErr?' tool-error':''}"${isErr?' open':''}>
+                <summary class="tool-call-summary">
+                  <span class="tool-call-arrow">▶</span>
+                  <span class="tool-call-name">⚡ tool response</span>
+                  ${isErr?'<span class="conv-tool-error-badge">Error</span>':'<span class="conv-tool-success-badge">Success</span>'}
+                </summary>
+                <div class="tool-call-detail">${detailHtml}</div>
+              </details>
+              ${renderInlineChecklist(mi)}
+            </div>
+          </div>`;
         }
-        if(msg.snapshot_data_url||msg.snapshot_path){
-          body+=`<img class="conv-snapshot" src="${h(msg.snapshot_data_url||snapshotPrefix+msg.snapshot_path)}" alt="快照" onerror="this.outerHTML='<span class=&quot;conv-snapshot-fallback&quot;>截图缺失</span>'">`;
-        }
-        if(msg.element_tree){
-          body+=`<details class="conv-etree"><summary>元素树</summary><pre>${h(msg.element_tree)}</pre></details>`;
-        }
-        html+=`<div class="conv-item role-tool" id="traj-${mi}" ${isErr?'style="border-left:3px solid #ff4d4f"':''}>
-          <div class="conv-role tool">tool <span style="color:#ccc;font-size:10px;font-weight:400">#${mi}</span></div>
-          ${body}
-          ${renderInlineChecklist(mi)}
-        </div>`;
         return;
       }
-      // assistant message (no tool_calls)
+
+      // ── assistant (no tool_calls) ──
       if(role==='assistant'){
         const content=typeof msg.content==='string'?msg.content:JSON.stringify(msg.content,null,2);
-        html+=`<div class="conv-item role-assistant" id="traj-${mi}">
-          <div class="conv-role assistant">Assistant <span style="color:#ccc;font-size:10px;font-weight:400">#${mi}</span></div>
-          <div class="conv-text">${h(content)}</div>
-          ${renderInlineChecklist(mi)}
-        </div>`;
+        if(isDebugMode){
+          html+=`<div class="conv-item role-assistant" id="traj-${mi}">
+            <div class="conv-role assistant">Assistant <span style="color:#ccc;font-size:10px;font-weight:400">#${mi}</span></div>
+            <div class="conv-text">${renderContent(content)}</div>
+            ${renderInlineChecklist(mi)}
+          </div>`;
+        } else {
+          if(pendingToolCalls){
+            html+=`<div class="chat-msg chat-assistant" id="traj-${mi}" style="flex-direction:column;align-items:flex-start;gap:4px">
+              ${pendingToolCalls.mergedAnchors}
+              <div class="chat-bubble asst-bbl has-tools" data-target="${pendingToolCalls.expandId}">
+                <div class="chat-text">${renderContent(content)}</div>
+              </div>
+              ${pendingToolCalls.snapshotHtml}
+              <div class="chat-tool-calls" id="${pendingToolCalls.expandId}">${pendingToolCalls.toolCallsHtml}${pendingToolCalls.inlineAttr}</div>
+            </div>`;
+            pendingToolCalls=null;
+          } else {
+            html+=`<div class="chat-msg chat-assistant" id="traj-${mi}">
+              <div class="chat-bubble asst-bbl">
+                <div class="chat-text">${renderContent(content)}</div>
+                ${renderInlineChecklist(mi)}
+              </div>
+            </div>`;
+          }
+        }
         return;
       }
-      // user message
+
+      // ── user ──
       const content=typeof msg.content==='string'?msg.content:JSON.stringify(msg.content,null,2);
-      html+=`<div class="conv-item role-user" id="traj-${mi}">
-        <div class="conv-role user">User <span style="color:#ccc;font-size:10px;font-weight:400">#${mi}</span></div>
-        <div class="conv-text">${h(content)}</div>
-      </div>`;
+      // 对外报告跳过空内容的 user 消息（避免操作卡片后产生空气泡）
+      if(!isDebugMode && !String(content||'').trim()) return;
+      if(isDebugMode){
+        html+=`<div class="conv-item role-user" id="traj-${mi}">
+          <div class="conv-role user">User <span style="color:#ccc;font-size:10px;font-weight:400">#${mi}</span></div>
+          <div class="conv-text">${renderContent(content)}</div>
+        </div>`;
+      } else {
+        html+=`<div class="chat-msg chat-user" id="traj-${mi}">
+          <div class="chat-bubble user-bbl">
+            <div class="chat-text">${renderContent(content)}</div>
+          </div>
+        </div>`;
+      }
     });
+    // 循环结束：flush 剩余未合并的 tool_calls
+    if(pendingToolCalls && !isDebugMode){
+      html+=`<div class="chat-msg chat-assistant" style="flex-direction:column;align-items:flex-start;gap:4px">
+        ${pendingToolCalls.mergedAnchors}
+        <div class="chat-bubble asst-bbl has-tools" data-target="${pendingToolCalls.expandId}">
+          <div class="chat-text">⚡ 工具调用</div>
+        </div>
+        ${pendingToolCalls.snapshotHtml}
+        <div class="chat-tool-calls" id="${pendingToolCalls.expandId}">${pendingToolCalls.toolCallsHtml}${pendingToolCalls.inlineAttr}</div>
+      </div>`;
+      pendingToolCalls=null;
+    }
     html+='</div>';
     el.innerHTML=html;
   }
@@ -1083,18 +1405,77 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue"
   // ── Case 详情整体渲染 ──
   function renderCaseDetail(){
     const c=cases[currentIdx];
+    // Pass@K：把当前 attempt 的产物镜像到 c 顶层；attempts 缺失/单 attempt 时为 no-op
+    if (typeof applyAttemptToCase === 'function') applyAttemptToCase(c, currentAttemptIdx);
     // 详情区编号一律用 c.idx —— 与任务侧 / 列表 / hash 对齐
-    const caseTitle=c.gen_trajectory?.brief_title||c.gen_intent?.brief_title||'';
+    const caseTitle=c.gen_trajectory?.brief_title||c.gen_intent?.brief_title||(c.gen_intent?.intent||'').slice(0,40)||'';
     const expandTagMd=caseHasExpand(c)?'<span class="tag-expand">负例-边界测试</span>':'';
     const incompleteTag=!caseIsVisible(c)
       ?'<span class="tag-expand" style="background:#f0f0f0;color:#8c8c8c;border-color:#d9d9d9">⚠ 未完成</span>'
       :'';
-    document.getElementById('caseDetailTitle').innerHTML=h(`Case ${c.idx}${caseTitle?' · '+caseTitle:''}`)+expandTagMd+incompleteTag;
+    // Pass@K：标题旁追加 pass@k 徽章 + Attempt 选择器（K>1）
+    let passKBadge='';
+    let attemptSelectorHtml='';
+    const pk = c.pass_k;
+    const attempts = Array.isArray(c.attempts)?c.attempts:[];
+    const k = pk?.k ?? attempts.length ?? 1;
+    if (k > 1) {
+      const passCount = pk?.pass_count ?? 0;
+      const passRate = pk?.pass_rate ?? 0;
+      const ratePct = Math.round(passRate * 100);
+      const okStyle = passCount === k
+        ? 'background:#f6ffed;color:#52c41a;border:1px solid #b7eb8f'
+        : passCount === 0
+          ? 'background:#fff2e8;color:#fa541c;border:1px solid #ffbb96'
+          : 'background:#fff7e6;color:#fa8c16;border:1px solid #ffd591';
+      passKBadge = ` <span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;margin-left:6px;${okStyle}">pass@${k}: ${passCount}/${k} (${ratePct}%)</span>`;
+      // 合并 c.attempts 与 pass_k.attempts，保证选项数与 pass@k 分母一致；
+      // 与 pass@k 计数口径一致：未完成 / 缺失 attempt 也标 ✗（计入失败），tooltip 区分。
+      const optEntries = new Map();
+      attempts.forEach(a => optEntries.set(Number(a.attemptIdx), { attempt: a, passEntry: null }));
+      (pk?.attempts ?? []).forEach(pa => {
+        const idx = Number(pa?.attemptIdx);
+        if (!Number.isFinite(idx)) return;
+        const existing = optEntries.get(idx);
+        if (existing) existing.passEntry = pa;
+        else optEntries.set(idx, { attempt: null, passEntry: pa });
+      });
+      const sortedIdxs = [...optEntries.keys()].sort((a,b)=>a-b);
+      const opts = sortedIdxs.map(idx => {
+        const { attempt: a, passEntry: pa } = optEntries.get(idx);
+        const v = a && a.view;
+        let mark, tip;
+        if (!a || (pa && pa.missing)) {
+          mark = '✗';
+          tip = `Attempt ${idx}：未跑完（计入 pass@k 失败）`;
+        } else if (!v || !v.is_complete) {
+          mark = '✗';
+          tip = `Attempt ${idx}：流程未完整跑完（计入 pass@k 失败）`;
+        } else {
+          const fc = Number(v.failed_count || 0);
+          if (fc > 0) { mark = '✗'; tip = `Attempt ${idx}：checklist 错 ${fc}`; }
+          else { mark = '✓'; tip = `Attempt ${idx}：全通过`; }
+        }
+        return `<option value="${idx}" ${idx===currentAttemptIdx?'selected':''} title="${tip}">Attempt ${idx} ${mark}</option>`;
+      }).join('');
+      attemptSelectorHtml = `<select id="attemptSelectorMobile" style="margin-left:8px;padding:2px 6px;border-radius:6px;border:1px solid #d9d9d9;font-size:11px">${opts}</select>`;
+    }
+    document.getElementById('caseDetailTitle').innerHTML=h(`Case ${c.idx}${caseTitle?' · '+caseTitle:''}`)+expandTagMd+incompleteTag+passKBadge+attemptSelectorHtml;
     document.getElementById('caseIntent').innerHTML='';
     setActiveTab('caseDetailTabs', activeCdTab);
     setActivePane('paneCd', activeCdTab);
     renderCdEval();
     renderCdTraj();
+    const sel=document.getElementById('attemptSelectorMobile');
+    if (sel) {
+      sel.addEventListener('change', (e)=>{
+        const next = Number(e.target.value);
+        if (Number.isFinite(next) && next > 0 && next !== currentAttemptIdx) {
+          currentAttemptIdx = next;
+          renderCaseDetail();
+        }
+      });
+    }
   }
 
   // ── Tab 切换辅助 ──
@@ -1103,7 +1484,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue"
   }
   function setActivePane(prefix, tab){
     const panesMap={
-      paneOv:{attribution:'paneOvAttribution','api-stats':'paneOvApiStats',coverage:'paneOvCoverage',review:'paneOvReview',performance:'paneOvPerformance'},
+      paneOv:{attribution:'paneOvAttribution','api-stats':'paneOvApiStats',coverage:'paneOvCoverage',performance:'paneOvPerformance'},
       paneCd:{eval:'paneCdEval',traj:'paneCdTraj'},
     };
     const map=panesMap[prefix]||{};
@@ -1202,12 +1583,24 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue"
   renderOvAttribution();
   renderOvApiStats();
   renderOvCoverage();
-  renderOvReview();
   renderCaseListMobile();
   renderSkillSwitcher();
   // 直接按 URL hash 渲染初始视图（有 #case-N 进入 viewCaseDetail，否则保持默认 viewSummary）
   renderForCurrentHash();
   window.addEventListener('hashchange', renderForCurrentHash);
+
+  // 对外报告：点击 assistant 气泡展开/收起工具调用面板
+  document.addEventListener('click',function(e){
+    var bubble=e.target.closest&&e.target.closest('.chat-bubble.asst-bbl.has-tools');
+    if(bubble){
+      var targetId=bubble.getAttribute('data-target');
+      var targetEl=targetId&&document.getElementById(targetId);
+      if(targetEl){
+        var isExpanded=targetEl.classList.contains('expanded');
+        targetEl.classList.toggle('expanded',!isExpanded);
+      }
+    }
+  });
 })();
 </script>
 </body>

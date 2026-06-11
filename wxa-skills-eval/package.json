@@ -1,6 +1,6 @@
 {
   "name": "wxa-skills-eval",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "description": "小程序 Skill 评测工具",
   "private": true,
   "bin": {

@@ -3,7 +3,7 @@ name: wxa-skills-eval
 description: 微信小程序 AI Skill 端到端评测引擎；当需要评测一个或多个 wxapp Skill 的意图理解、轨迹生成与最终答案质量时加载本 Skill。
 metadata:
   author: Tencent
-  version: '0.1.17'
+  version: '0.1.18'
 ---
 
 # wxa-skills-eval
@@ -113,7 +113,7 @@ node wxa-skills-eval/cli/index.js run --from eval   -p ...
 
 ## 进一步阅读
 
-- [`references/pipeline.md`](references/pipeline.md) — 12 节点执行顺序、依赖关系、续跑机制
+- [`references/pipeline.md`](references/pipeline.md) — 13 节点执行顺序、依赖关系、续跑机制
 - [`references/devtools-adapter.md`](references/devtools-adapter.md) — DevTools CLI 接入要点
 - [`references/configuration.md`](references/configuration.md) — `.env` 全部环境变量与生效节点
 - [`references/troubleshooting.md`](references/troubleshooting.md) — 常见报错排查
