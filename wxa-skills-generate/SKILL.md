@@ -19,7 +19,11 @@ metadata:
 ## 依赖
 
 - **可读的源码目录**（仅给 appid / URL / 截图 → 触发阻断）
-- 本 skill **不执行**代码，只生成代码；不需要 Node/CLI 等运行时
+- 本 skill 主体**不执行**代码，只生成代码；但**运行时探测（probe）**阶段需要：
+  - `scripts/probe.mjs` + `scripts/probe-lib.mjs`（与本 skill 同目录）
+  - 源项目根目录安装 `miniprogram-automator`（`npm i -D miniprogram-automator`）
+  - 微信开发者工具 CLI 已安装且「服务端口」已开启（支持 `WX_CLI_PATH` 环境变量 / 自动检测）
+  - probe 为**按需触发 + 建议主动使用**（详见阶段 3.6 与 `references/RUNTIME_PROBE.md`），通过 `evaluate` 覆写 `wx.request` 同时捕获请求参数与响应数据
 
 ## 术语约定
 
@@ -39,6 +43,7 @@ metadata:
 | `references/ATOMIC_COMPONENT_CSS.md` | 原子组件 WXSS **实现规范**（容器约束、单位换算、省略规范、禁用清单） | 阶段 5 样式编写 |
 | `references/STYLE_MIGRATION.md` | 源样式提取 + 字段映射的完整工作流 | 阶段 5 组件生成前（强制前置） |
 | `references/HALF_SCREEN.md` | 半屏页面（`viewCtx.openDetailPage`）API、上行消息、禁用接口/组件清单 | **按需**——仅当业务确有"详情 / 补充信息"语义时（默认不生成） |
+| `references/RUNTIME_PROBE.md` | 运行时探测（automator probe）触发条件、SOP、失败兜底、结果接入 | 阶段 3.6——当静态分析无法得出可靠结论时（T1~T6） |
 
 ---
 
@@ -67,6 +72,7 @@ metadata:
 | 未提供可读的源码目录（只给 appid / URL / 截图） | 阶段 1 前 | "请提供小程序完整源码目录，当前无法基于非源码资产生成" |
 | 所有候选实现都依赖非白名单 JSAPI 且无替代方案 | 阶段 3 | "该能力依赖非白名单 JSAPI（如 `<api>`），无法自动生成" |
 | `app.json` 缺 `"lazyCodeLoading": "requiredComponents"` 配置 | 阶段 1 | "项目 `app.json` 顶层缺少 `\"lazyCodeLoading\": \"requiredComponents\"`，否则独立分包内的原子接口被小程序 AI 路由调用时无法正确加载执行。请在 `app.json` 顶层添加该字段后重新触发生成" |
+| 静态分析 + 运行时探测 + 离线兜底三者全部失败 | 阶段 3 | "接口 `<api>` 无法通过静态分析、运行时探测、离线抓包任何一种方式获取真实接口信息，无法生成" |
 
 ### C. wx API 白名单（每次生成必须对照）
 
@@ -218,6 +224,8 @@ metadata:
 - [ ] 完整依赖链路
 - [ ] 鉴权依赖确认
 - [ ] 可行性三级评定（高/中/无置信）
+- [ ] 检查 T1~T6 触发条件 + 建议探测场景，判断是否需要运行时探测
+- [ ] 如需探测：一次性通知用户 → 生成 plan.json（含 preSteps）→ 执行 `scripts/probe.mjs` → 结果接入阶段 4
 
 阶段 4 — 原子接口设计
 - [ ] 原子接口清单（含 name / description / inputSchema / outputSchema / _meta.ui.componentPath）
@@ -248,6 +256,9 @@ metadata:
 |------|------|
 | 正常主干 | 0 → 1 → (2) → 3 → 4 → 5 → 6 → 交棒 `wxa-skills-validate` |
 | 用户已明确能力 | 跳过 2，0 → 1 → 3 |
+| 阶段 3 命中 probe 触发条件 | 3.5 → 3.6（probe）→ 4 |
+| probe 失败，离线兜底成功 | 3.6 → 4（使用离线兜底数据） |
+| probe + 离线兜底均失败 | 3.6 → 阻断规则 B |
 | validator 反馈 T1~T6 / A/B/C/D 类错误 | 回本 skill 阶段 5 改代码 |
 | validator 反馈 T7/T8（接口划分 / 依赖链路） | 回本 skill 阶段 4 重设计 |
 | 任一阶段触发阻断规则 B | 立即终止，输出阻断原因 |
@@ -427,6 +438,47 @@ metadata:
 候选 2：<接口路径/云函数名> — 参数 <x>、返回 <y>（来自 pages/yyy.js 第 M 行）
 
 请回复序号（如"1"）或说明选择理由。
+```
+
+**3.6 运行时探测（probe）**（按需触发 + 建议主动使用）：
+
+当静态分析无法得出可靠结论时（见下表），使用 `miniprogram-automator` 启动微信开发者工具、模拟用户交互、捕获**真实**网络请求与响应。**完整 SOP 见 `references/RUNTIME_PROBE.md`**。
+
+**必须触发**的条件：
+
+| 触发条件 | 静态分析为何不够 |
+|---------|----------------|
+| **T1** URL 由多层变量动态拼接 / 压缩代码中关键片段不可读 | 无法确定真实 URL |
+| **T2** 请求体含签名/加密字段，由运行时函数计算 | 无法离线复现 |
+| **T3** 响应结构不可推断（T3a：响应被原样透传且调用方无字段访问 / T3b：响应只读不结构化） | 无法推断 outputSchema |
+| **T4** 接口必须先登录才能返回业务数据 | 无法确认正常态字段 |
+| **T5** 可行性判定为中置信且用户也不确定多个候选 | 静态匹配不足以决断 |
+| **T6** 列表→详情参数传递链超过 3 跳，且使用 `getApp().globalData` / 全局事件总线 | 静态追溯链路过长不可靠 |
+
+**建议主动探测**的场景（非强制，但强烈推荐以提高 outputSchema 准确性）：
+
+| 场景 | 原因 |
+|------|------|
+| 源码经过压缩/混淆 | probe 能拿到真实 URL 和响应结构，避免猜错字段 |
+| outputSchema 字段类型不确定 | probe 拿到真实数据后可精确判断 string/number/boolean |
+| T3b 场景（字段在 wxml 模板中使用） | 即使能从 wxml 推断字段名，probe 仍能验证字段类型和嵌套结构 |
+
+**执行流程**：
+
+1. **判断是否触发**：对每个接口逐条检查 T1~T6，无命中则评估是否属于建议探测场景。T3 判定方法：追踪 `wx.request` 的 `success` 回调 → `resolve/res.data/return` → 所有调用方的字段访问链路，若整条链路上**不存在任何 `result.xxx` / `res.data.xxx` / `item.xxx`** 式的字段访问（含 `setData({ list: res.data.list })` 等隐式引用），则命中 T3a；若存在字段访问但仅是模板循环无解构，则命中 T3b
+2. **一次性通知用户**（非阻断）：列出命中接口及原因，告知 automator 将拉起开发者工具。**不等待确认，直接继续下一步**。仅在环境前置检查失败（CLI 找不到/端口未开）时才中断，告知用户修复步骤
+3. **生成探测计划**：为命中接口组装 `plan.json`（`api_name` / `target_page` / `trigger` / `matchUrlIncludes` / `captureWaitMs` / `preSteps`），保存到 `<workdir>/.probe/plan.json`
+4. **执行探测**：调用 `scripts/probe.mjs`，不要手写 automator 代码
+5. **结果处理**：
+   - 探测成功 → 将结果写入 `.probe/<run>.json`，阶段 4 设计 `inputSchema`/`outputSchema` 时**优先**使用 probe 结果
+   - 探测失败 → 告知用户并提供离线兜底选项（提供 HAR/抓包数据）
+   - 用户明确拒绝 probe → 改走「请提供请求示例 / 抓包数据」的离线兜底
+6. **三级降级**：静态分析 → probe → 离线兜底，三者全部失败才走阻断规则 B
+
+**probe 结果引用**：在 `apis/<name>.js` 顶部注释写明：
+```js
+// [ai-mode:probe] 2026-06-02 验证：实际请求 GET https://api.example.com/path
+// [ai-mode:probe] 实际响应字段：items[].{id, name, price}
 ```
 
 ---
