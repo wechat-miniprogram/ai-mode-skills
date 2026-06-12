@@ -9,6 +9,20 @@
 
 ## wxa-skills-generate
 
+### [0.1.19] - 2026-06-12
+
+#### ✨ 新增
+
+- **运行时探测（Automator Probe）**：阶段 3 新增 3.6 运行时探测环节，基于 `miniprogram-automator` 启动微信开发者工具，在**源项目**上模拟交互并通过 `evaluate` 覆写 `wx.request` 捕获真实请求参数与响应数据，补齐静态分析无法确定的 URL / 字段 / 类型。新增 `scripts/probe.mjs` + `scripts/probe-lib.mjs` 执行脚本与 `references/RUNTIME_PROBE.md` 专题文档（触发条件、SOP、失败兜底、合并策略、结果接入）。
+- **T1~T6 强制触发条件**：命中以下任一即标记 `requiresRuntimeProbe: true` 并**强制执行 probe，禁止跳过**——T1 URL 动态拼接/压缩不可读、T2 请求含签名/加密字段、T3 响应结构不可推断（T3a 透传无字段访问 / T3b 模板隐式消费）、T4 必须登录才返回业务数据、T5 中置信且用户也不确定、T6 参数传递链 >3 跳 + globalData。另定义压缩源码 / 字段类型不确定等建议（非强制）探测场景。
+- **静态分析 + Probe 合并流程**：分析产物统一写入 `<源项目>/.ai-mode-skills/`（`static-analysis.json` 带 `confidence` 标记 → `merged-result.json` 合并后最终结果，`probe/` 存放 plan 与原始结果）。阶段 4 入口条件改为读取 `merged-result.json`，存在 `requiresProbe: true` 时必须先完成 probe（成功或降级兜底）才能进入。
+- **代码注释溯源**：`apis/<name>.js` 顶部新增 `[ai-mode:static]` / `[ai-mode:probe]` 注释规范，标注 URL 与响应字段的来源与验证情况。
+- **新增阻断规则**：静态分析 + 运行时探测 + 离线兜底三者全部失败时阻断。
+
+#### 📝 文档
+
+- SKILL.md「依赖」补充 probe 阶段所需的 `scripts/` 脚本、`miniprogram-automator`（安装到 skill `scripts/` 目录，禁止装入源项目）与开发者工具 CLI/服务端口要求；reference 索引、阶段产出自检清单与流程跳转表同步加入 probe 相关条目。
+
 ### [0.1.18] - 2026-06-08
 
 #### ✨ 新增
