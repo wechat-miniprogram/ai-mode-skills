@@ -26,3 +26,7 @@ dist/
 # 本地凭据（含密钥，不得入库）
 credentials.json
 mp-eval/credentials.json
+
+package.json
+package-lock.json
+node_modules/

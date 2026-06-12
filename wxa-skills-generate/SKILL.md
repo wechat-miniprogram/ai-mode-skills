@@ -19,7 +19,11 @@ metadata:
 ## 依赖
 
 - **可读的源码目录**（仅给 appid / URL / 截图 → 触发阻断）
-- 本 skill **不执行**代码，只生成代码；不需要 Node/CLI 等运行时
+- 本 skill 主体**不执行**代码，只生成代码；但**运行时探测（probe）**阶段需要：
+  - `scripts/probe.mjs` + `scripts/probe-lib.mjs`（与本 skill 同目录）
+  - `miniprogram-automator`：阶段 3.6 环境检查时由模型安装到 skill 的 `scripts/` 目录（`cd <skill-path>/scripts && npm install miniprogram-automator`），**禁止安装到小程序源项目**
+  - 微信开发者工具 CLI 已安装且「服务端口」已开启（支持 `WX_CLI_PATH` 环境变量 / 自动检测）
+  - probe 为**强制触发**：阶段 3 标记 `requiresRuntimeProbe: true` 或命中 T1~T6 时**必须执行 probe，禁止跳过**（详见阶段 3.6 与 `references/RUNTIME_PROBE.md`），通过 `evaluate` 覆写 `wx.request` 同时捕获请求参数与响应数据
 
 ## 术语约定
 
@@ -39,6 +43,7 @@ metadata:
 | `references/ATOMIC_COMPONENT_CSS.md` | 原子组件 WXSS **实现规范**（容器约束、单位换算、省略规范、禁用清单） | 阶段 5 样式编写 |
 | `references/STYLE_MIGRATION.md` | 源样式提取 + 字段映射的完整工作流 | 阶段 5 组件生成前（强制前置） |
 | `references/HALF_SCREEN.md` | 半屏页面（`viewCtx.openDetailPage`）API、上行消息、禁用接口/组件清单 | **按需**——仅当业务确有"详情 / 补充信息"语义时（默认不生成） |
+| `references/RUNTIME_PROBE.md` | 运行时探测（automator probe）触发条件、SOP、失败兜底、结果接入。**命中 T1~T6 时必须执行，不可跳过** | 阶段 3.6——命中触发条件时**强制执行** |
 
 ---
 
@@ -67,6 +72,7 @@ metadata:
 | 未提供可读的源码目录（只给 appid / URL / 截图） | 阶段 1 前 | "请提供小程序完整源码目录，当前无法基于非源码资产生成" |
 | 所有候选实现都依赖非白名单 JSAPI 且无替代方案 | 阶段 3 | "该能力依赖非白名单 JSAPI（如 `<api>`），无法自动生成" |
 | `app.json` 缺 `"lazyCodeLoading": "requiredComponents"` 配置 | 阶段 1 | "项目 `app.json` 顶层缺少 `\"lazyCodeLoading\": \"requiredComponents\"`，否则独立分包内的原子接口被小程序 AI 路由调用时无法正确加载执行。请在 `app.json` 顶层添加该字段后重新触发生成" |
+| 静态分析 + 运行时探测 + 离线兜底三者全部失败 | 阶段 3 | "接口 `<api>` 无法通过静态分析、运行时探测、离线抓包任何一种方式获取真实接口信息，无法生成" |
 
 ### C. wx API 白名单（每次生成必须对照）
 
@@ -218,6 +224,9 @@ metadata:
 - [ ] 完整依赖链路
 - [ ] 鉴权依赖确认
 - [ ] 可行性三级评定（高/中/无置信）
+- [ ] 逐条检查 T1~T6 触发条件，**命中任一即标记 `requiresRuntimeProbe: true`**
+- [ ] ⚠️ **`requiresRuntimeProbe: true` 时必须执行 probe，禁止标记后跳过**：环境检查（自动安装 automator）→ 通知用户 → 生成 plan.json → 执行 `scripts/probe.mjs` → 结果写入 `<源项目>/.ai-mode-skills/probe/` → 合并写入 `merged-result.json` → 接入阶段 4
+- [ ] 未命中 T1~T6 但属于建议探测场景（压缩源码 / outputSchema 不确定）→ 执行 probe
 
 阶段 4 — 原子接口设计
 - [ ] 原子接口清单（含 name / description / inputSchema / outputSchema / _meta.ui.componentPath）
@@ -248,6 +257,9 @@ metadata:
 |------|------|
 | 正常主干 | 0 → 1 → (2) → 3 → 4 → 5 → 6 → 交棒 `wxa-skills-validate` |
 | 用户已明确能力 | 跳过 2，0 → 1 → 3 |
+| 阶段 3 命中 probe 触发条件 | 3.5 → **3.6（probe，强制执行）** → 4。⚠️ **禁止 3.5 → 4 跳过 3.6** |
+| probe 失败，离线兜底成功 | 3.6 → 4（使用离线兜底数据） |
+| probe + 离线兜底均失败 | 3.6 → 阻断规则 B |
 | validator 反馈 T1~T6 / A/B/C/D 类错误 | 回本 skill 阶段 5 改代码 |
 | validator 反馈 T7/T8（接口划分 / 依赖链路） | 回本 skill 阶段 4 重设计 |
 | 任一阶段触发阻断规则 B | 立即终止，输出阻断原因 |
@@ -429,6 +441,39 @@ metadata:
 请回复序号（如"1"）或说明选择理由。
 ```
 
+**3.6 运行时探测（probe）**：
+
+> 命中 T1~T6 时**强制执行**，仅在环境不可用/用户拒绝时允许降级。完整 SOP 见 `references/RUNTIME_PROBE.md`。
+
+**触发条件**（命中任一即执行）：
+
+| # | 条件 | 原因 |
+|---|------|------|
+| T1 | URL 动态拼接 / 压缩不可读 | 无法确定真实 URL |
+| T2 | 请求含签名/加密字段 | 无法离线复现 |
+| T3 | 响应结构不可推断（T3a 透传无字段访问 / T3b 模板隐式消费） | 无法推断 outputSchema |
+| T4 | 必须登录才返回业务数据 | 无法确认正常态字段 |
+| T5 | 中置信且用户也不确定 | 静态匹配不足 |
+| T6 | 参数传递链 >3 跳 + globalData | 静态追溯不可靠 |
+
+建议探测（非强制）：压缩源码、字段类型不确定、T3b 可从 wxml 推断但需验证嵌套结构。
+
+**执行流程**：
+
+1. **静态分析产出中间结果** → 写入 `<源项目>/.ai-mode-skills/static-analysis.json`，标记各维度 `confidence: "high"/"partial"/"low"`
+2. **判断是否需 probe**：存在非 `"high"` 维度或命中 T1~T6 → 需要
+3. **环境检查**：确认 `miniprogram-automator` 已安装（装在 skill 的 `scripts/` 目录）、CLI 可用
+4. **通知用户**（非阻断）→ 生成 `<源项目>/.ai-mode-skills/probe/plan.json` → 执行 `scripts/probe.mjs`
+5. **合并结果**（见 `references/RUNTIME_PROBE.md` §5）→ 写入 `<源项目>/.ai-mode-skills/merged-result.json`
+6. **降级**：probe 失败 → 离线兜底（HAR/抓包）；全失败 → 阻断规则 B
+
+**代码注释溯源**（`apis/<name>.js` 顶部）：
+```js
+// [ai-mode:static] URL /api/items/search 来自 utils/request.js:42
+// [ai-mode:probe] 2026-06-02 验证完整 URL https://shop.example.com/api/items/search
+// [ai-mode:probe] 实际响应字段：list[].{id, name, price, img}, total(number)
+```
+
 ---
 
 ## 阶段 4 — 原子接口设计
@@ -437,7 +482,7 @@ metadata:
 
 | 项 | 内容 |
 |---|------|
-| 入口条件 | 阶段 3 产出接口/JSAPI 清单与依赖链路 |
+| 入口条件 | `<源项目>/.ai-mode-skills/merged-result.json` 已生成（阶段 3 完成静态分析 + probe 合并后的最终结果）。⚠️ **如果 `static-analysis.json` 中存在 `requiresProbe: true` 的接口，则必须先完成 3.6 probe 执行（成功或降级兜底）后才能进入本阶段，否则禁止进入** |
 | 产出物 | ① 原子接口清单；② API 依赖图；③ storage key 清单 |
 | 下一步 | 三份产出物齐全 → 阶段 5 |
 
