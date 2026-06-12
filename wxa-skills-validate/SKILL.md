@@ -3,7 +3,7 @@ name: wxa-skills-validate
 description: 校验和修复小程序 AI SKILLs 产物。在以下场景触发：对 skills/ 目录做静态校验、跑通原子接口、验证原子组件渲染、修复校验报错、输出交付文档。依托微信开发者工具进行真机验证。
 metadata:
   author: Tencent
-  version: '0.1.17'
+  version: '0.1.18'
 ---
 
 # wxa-skills-validate
@@ -408,7 +408,7 @@ node <skill-dir>/scripts/render.mjs \
 **优先假设不是代码写错，而是该 JSAPI 不在技能分包白名单内**。按以下顺序处理：
 
 1. 从报错提取 API 名，对照 wxa-skills-generate `SKILL.md` 的 C.1（接口侧）/ C.2（组件侧）白名单（**完整清单**见 `wxa-skills-generate/references/JSAPI_WHITELIST.md`）
-2. 在白名单内 → 检查调用上下文是否错位（组件/接口侧专属）、`wx.request` 在组件侧是否漏声明 `permissions["scope.network"]`
+2. 在白名单内 → 检查调用上下文是否错位（组件/接口侧专属）、`wx.request` 在组件侧是否漏声明 `permissions["scope.dynamic"]`
 3. 不在白名单 → 按 C.4 替换（如 `chooseImage` → `chooseMedia`）或改网络请求实现
 4. 无等价替代 → 标 T9 终止。**禁止用 `if (wx.x)` / `try/catch` 吞异常当修好**
 

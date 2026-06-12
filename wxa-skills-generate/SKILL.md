@@ -123,7 +123,7 @@ metadata:
 
 #### C.3 组件配置（关联页面 + 网络能力）
 
-每个带 `_meta.ui.componentPath` 的接口，对应组件必须在 `mcp.json` 顶层 `components[]` 中声明一条记录，**`path` 必须与该接口的 `_meta.ui.componentPath` 字符串完全相等**（含末尾 `/index`，严格相等比对）；**`relatedPage` 为必填**（关联小程序页面 path，用于卡片右上角"进入小程序"入口），**必须以 `/` 开头**（绝对路径），且去掉前导 `/` 后必须是项目 `app.json.pages[]` 中真实存在的页面，业务上无对应页面时**兜底用 `/<app.json.pages[0]>`（首页，同样带前导 `/`）**。网络能力（`permissions.scope.network`）按需声明。
+每个带 `_meta.ui.componentPath` 的接口，对应组件必须在 `mcp.json` 顶层 `components[]` 中声明一条记录，**`path` 必须与该接口的 `_meta.ui.componentPath` 字符串完全相等**（含末尾 `/index`，严格相等比对）；**`relatedPage` 为必填**（关联小程序页面 path，用于卡片右上角"进入小程序"入口），**必须以 `/` 开头**（绝对路径），且去掉前导 `/` 后必须是项目 `app.json.pages[]` 中真实存在的页面，业务上无对应页面时**兜底用 `/<app.json.pages[0]>`（首页，同样带前导 `/`）**。网络能力（`permissions.scope.dynamic`）按需声明。
 
 ```json
 {
@@ -135,7 +135,7 @@ metadata:
     {
       "path": "components/weather-card/index",
       "relatedPage": "/pages/weather/index",
-      "permissions": { "scope.network": { "desc": "声明使用场景" } }
+      "permissions": { "scope.dynamic": { "desc": "声明使用场景" } }
     }
   ]
 }
