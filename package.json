@@ -3,8 +3,6 @@
   "version": "0.0.0",
   "type": "module",
   "description": "微信小程序 AI 开发模式辅助 Skills 工具集（generate / validate / eval）",
-  "scripts": {},
-  "dependencies": {
-    "miniprogram-automator": "^0.12.1"
+  "scripts": {
   }
 }

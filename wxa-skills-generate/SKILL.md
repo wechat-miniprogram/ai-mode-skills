@@ -225,7 +225,7 @@ metadata:
 - [ ] 鉴权依赖确认
 - [ ] 可行性三级评定（高/中/无置信）
 - [ ] 逐条检查 T1~T6 触发条件，**命中任一即标记 `requiresRuntimeProbe: true`**
-- [ ] ⚠️ **`requiresRuntimeProbe: true` 时必须执行 probe，禁止标记后跳过**：环境检查（自动安装 automator）→ 通知用户 → 生成 plan.json → 执行 `scripts/probe.mjs` → 结果写入 `.probe/` → 接入阶段 4
+- [ ] ⚠️ **`requiresRuntimeProbe: true` 时必须执行 probe，禁止标记后跳过**：环境检查（自动安装 automator）→ 通知用户 → 生成 plan.json → 执行 `scripts/probe.mjs` → 结果写入 `<源项目>/.ai-mode-skills/probe/` → 合并写入 `merged-result.json` → 接入阶段 4
 - [ ] 未命中 T1~T6 但属于建议探测场景（压缩源码 / outputSchema 不确定）→ 执行 probe
 
 阶段 4 — 原子接口设计
@@ -441,56 +441,38 @@ metadata:
 请回复序号（如"1"）或说明选择理由。
 ```
 
-**3.6 运行时探测（probe）**（**命中条件时强制执行，禁止跳过**）：
+**3.6 运行时探测（probe）**：
 
-> ⚠️ **硬性约束**：阶段 3 分析结果中 `requiresRuntimeProbe: true`，或任一接口命中下表 T1~T6 条件时，**必须执行 probe 探测，不得以任何理由跳过**（包括但不限于"静态分析已够用""响应可推断""先继续后续阶段"等）。跳过 probe 直接进入阶段 4 将导致 `outputSchema` 不准确、生成的代码无法通过校验。
->
-> 只有 probe **执行失败**（环境不可用 / 超时 / 用户明确拒绝）后，才允许降级到离线兜底。
+> 命中 T1~T6 时**强制执行**，仅在环境不可用/用户拒绝时允许降级。完整 SOP 见 `references/RUNTIME_PROBE.md`。
 
-使用 `miniprogram-automator` 启动微信开发者工具、模拟用户交互、捕获**真实**网络请求与响应。**完整 SOP 见 `references/RUNTIME_PROBE.md`**。
+**触发条件**（命中任一即执行）：
 
-**必须触发**的条件（命中任一即**强制执行** probe）：
+| # | 条件 | 原因 |
+|---|------|------|
+| T1 | URL 动态拼接 / 压缩不可读 | 无法确定真实 URL |
+| T2 | 请求含签名/加密字段 | 无法离线复现 |
+| T3 | 响应结构不可推断（T3a 透传无字段访问 / T3b 模板隐式消费） | 无法推断 outputSchema |
+| T4 | 必须登录才返回业务数据 | 无法确认正常态字段 |
+| T5 | 中置信且用户也不确定 | 静态匹配不足 |
+| T6 | 参数传递链 >3 跳 + globalData | 静态追溯不可靠 |
 
-| 触发条件 | 静态分析为何不够 |
-|---------|----------------|
-| **T1** URL 由多层变量动态拼接 / 压缩代码中关键片段不可读 | 无法确定真实 URL |
-| **T2** 请求体含签名/加密字段，由运行时函数计算 | 无法离线复现 |
-| **T3** 响应结构不可推断（T3a：响应被原样透传且调用方无字段访问 / T3b：响应只读不结构化） | 无法推断 outputSchema |
-| **T4** 接口必须先登录才能返回业务数据 | 无法确认正常态字段 |
-| **T5** 可行性判定为中置信且用户也不确定多个候选 | 静态匹配不足以决断 |
-| **T6** 列表→详情参数传递链超过 3 跳，且使用 `getApp().globalData` / 全局事件总线 | 静态追溯链路过长不可靠 |
+建议探测（非强制）：压缩源码、字段类型不确定、T3b 可从 wxml 推断但需验证嵌套结构。
 
-**建议主动探测**的场景（非强制，但强烈推荐以提高 outputSchema 准确性）：
+**执行流程**：
 
-| 场景 | 原因 |
-|------|------|
-| 源码经过压缩/混淆 | probe 能拿到真实 URL 和响应结构，避免猜错字段 |
-| outputSchema 字段类型不确定 | probe 拿到真实数据后可精确判断 string/number/boolean |
-| T3b 场景（字段在 wxml 模板中使用） | 即使能从 wxml 推断字段名，probe 仍能验证字段类型和嵌套结构 |
+1. **静态分析产出中间结果** → 写入 `<源项目>/.ai-mode-skills/static-analysis.json`，标记各维度 `confidence: "high"/"partial"/"low"`
+2. **判断是否需 probe**：存在非 `"high"` 维度或命中 T1~T6 → 需要
+3. **环境检查**：确认 `miniprogram-automator` 已安装（装在 skill 的 `scripts/` 目录）、CLI 可用
+4. **通知用户**（非阻断）→ 生成 `<源项目>/.ai-mode-skills/probe/plan.json` → 执行 `scripts/probe.mjs`
+5. **合并结果**（见 `references/RUNTIME_PROBE.md` §5）→ 写入 `<源项目>/.ai-mode-skills/merged-result.json`
+6. **降级**：probe 失败 → 离线兜底（HAR/抓包）；全失败 → 阻断规则 B
 
-**执行流程**（**严格按序执行，不可跳步**）：
-
-1. **判断是否触发**：对每个接口逐条检查 T1~T6，无命中则评估是否属于建议探测场景。T3 判定方法：追踪 `wx.request` 的 `success` 回调 → `resolve/res.data/return` → 所有调用方的字段访问链路，若整条链路上**不存在任何 `result.xxx` / `res.data.xxx` / `item.xxx`** 式的字段访问（含 `setData({ list: res.data.list })` 等隐式引用），则命中 T3a；若存在字段访问但仅是模板循环无解构，则命中 T3b
-2. **环境前置检查**（命中触发条件后**立即执行**，不跳过）：
-   - 检查 skill 的 `scripts/node_modules/miniprogram-automator` 是否存在：**未安装 → 执行 `cd <skill-path>/scripts && npm install miniprogram-automator` 安装**。⚠️ **禁止安装到小程序源项目**，只能安装到 skill 的 `scripts/` 目录
-   - 检查 CLI 路径：按 `WX_CLI_PATH` → 默认路径 → mdfind 顺序检测
-   - CLI 找不到 / 端口未开 → 告知用户修复步骤后中断（仅此情况允许中断）
-3. **一次性通知用户**（非阻断）：列出命中接口及原因，告知 automator 将拉起开发者工具。**不等待确认，直接继续下一步**
-4. **生成探测计划**：为命中接口组装 `plan.json`（`api_name` / `target_page` / `trigger` / `matchUrlIncludes` / `captureWaitMs` / `preSteps`），保存到 `<workdir>/.probe/plan.json`
-5. **执行探测**：调用 `scripts/probe.mjs`，**不要手写 automator 代码，不要跳过此步**
-6. **结果处理**：
-   - 探测成功 → 将结果写入 `.probe/<run>.json`，阶段 4 设计 `inputSchema`/`outputSchema` 时**必须优先**使用 probe 结果（不可忽略）
-   - 探测失败 → 告知用户并提供离线兜底选项（提供 HAR/抓包数据）
-   - 用户明确拒绝 probe → 改走「请提供请求示例 / 抓包数据」的离线兜底
-7. **三级降级**：静态分析 → probe → 离线兜底，三者全部失败才走阻断规则 B。**注意：标记了 `requiresRuntimeProbe: true` 却未执行 probe 就直接进阶段 4 不属于"降级"，属于违规跳过**
-
-**probe 结果引用**（**必须**，不可省略）：在 `apis/<name>.js` 顶部注释写明：
+**代码注释溯源**（`apis/<name>.js` 顶部）：
 ```js
-// [ai-mode:probe] 2026-06-02 验证：实际请求 GET https://api.example.com/path
-// [ai-mode:probe] 实际响应字段：items[].{id, name, price}
+// [ai-mode:static] URL /api/items/search 来自 utils/request.js:42
+// [ai-mode:probe] 2026-06-02 验证完整 URL https://shop.example.com/api/items/search
+// [ai-mode:probe] 实际响应字段：list[].{id, name, price, img}, total(number)
 ```
-
-> ⚠️ **自检**：如果 `apis/<name>.js` 顶部注释只有 `[ai-mode:probe] 探测需求:...建议运行时探测` 而没有 `验证：实际请求...` / `实际响应字段：...`，说明 **probe 只标记了需求但未实际执行**——必须回到阶段 3.6 补执行。
 
 ---
 
@@ -500,7 +482,7 @@ metadata:
 
 | 项 | 内容 |
 |---|------|
-| 入口条件 | 阶段 3 产出接口/JSAPI 清单与依赖链路。⚠️ **如果阶段 3 标记了 `requiresRuntimeProbe: true`，则必须先完成 3.6 probe 执行（成功或降级兜底）后才能进入本阶段，否则禁止进入** |
+| 入口条件 | `<源项目>/.ai-mode-skills/merged-result.json` 已生成（阶段 3 完成静态分析 + probe 合并后的最终结果）。⚠️ **如果 `static-analysis.json` 中存在 `requiresProbe: true` 的接口，则必须先完成 3.6 probe 执行（成功或降级兜底）后才能进入本阶段，否则禁止进入** |
 | 产出物 | ① 原子接口清单；② API 依赖图；③ storage key 清单 |
 | 下一步 | 三份产出物齐全 → 阶段 5 |
 
