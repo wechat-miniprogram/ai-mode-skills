@@ -3,7 +3,7 @@ name: wxa-skills-generate
 description: 分析小程序项目源代码（含压缩/混淆），识别核心业务步骤，提取网络接口与 JSAPI 调用，生成符合 wx.modelContext 规范的技能分包（含原子接口 + 原子组件），并完成 app.json / project.config.json 配置集成。在以下场景触发：把小程序页面能力改造为小程序 AI 原子接口、生成 skills/ 分包代码、从源项目派生 MCP 工具、小程序 AI 的开发模式代码生成。仅负责静态生成，生成完成后必须交棒 wxa-skills-validate 做校验。
 metadata:
   author: Tencent
-  version: '0.1.19'
+  version: '0.1.20'
 ---
 
 # wxa-skill-generate
@@ -86,12 +86,12 @@ metadata:
 
 | 分类 | 高频接口 |
 |------|---------|
-| 小程序 AI | `wx.modelContext.registerAPI`、`wx.modelContext.createSkill`（创建 skill 实例，返回 `{ use, registerAPI }`，用于注册中间件）、`wx.modelContext.expireAllCards` |
+| 小程序 AI | `wx.modelContext.registerAPI`、`wx.modelContext.createSkill`（返回 `{ use, registerAPI }`）、`wx.modelContext.expireAllCards`、`wx.modelContext.getSessionId`（获取会话 ID） |
 | 登录 | `wx.login`、`wx.checkSession` |
 | 网络 | `wx.request`、网络状态 `getNetworkType` / `on*NetworkStatusChange` |
 | 云开发 | `wx.cloud.init` / `callFunction` / `database` |
 | 位置 | `wx.getLocation` / `getFuzzyLocation` / `chooseLocation` / `openLocation` |
-| 系统 | `wx.getDeviceInfo`、`wx.getAppBaseInfo` |
+| 系统 | `wx.getDeviceInfo`、`wx.getAppBaseInfo`、`wx.getWindowInfo` |
 | 数据缓存 | `wx.{get,set,remove,clear,batchGet,batchSet}Storage`（含 `Sync`）、`wx.getStorageInfo` |
 | 上传下载 | `wx.uploadFile`、`wx.downloadFile` |
 | 微信支付 | `wx.requestPayment`、`wx.openBusinessView`（多种 `businessType`） |
@@ -110,13 +110,14 @@ metadata:
 
 | 分类 | 高频接口 |
 |------|---------|
-| 小程序 AI | `wx.modelContext.getContext(this)` / `getViewContext(this)`、`expireAllCards` / `expirePreviousCards` |
-| 网络请求 | `wx.request`（需在 `mcp.json` 声明 `network` 能力，见 C.3） |
-| 系统 | `wx.getDeviceInfo`、`wx.getAppBaseInfo` |
+| 小程序 AI | `getContext(this)`（支持 `reapplyApiCall` 等）、`getViewContext(this)`（支持 `preloadDetailPage` 及 `on` 事件等）、`expireAllCards` / `expirePreviousCards` |
+| 网络请求 | `wx.request`（不支持，若调需声明 `scope.dynamic`） |
+| 系统 | `wx.getDeviceInfo`、`wx.getAppBaseInfo`、`wx.getWindowInfo` |
 | 数据缓存 | `wx.getStorage` / `setStorage` 全套（含 `Sync`） |
-| 媒体 | `wx.previewMedia` |
-| 文件 | `wx.openDocument` |
+| 媒体/交互 | `wx.previewMedia`、`wx.showToast`、`wx.hideToast` |
+| 文件/上传下载 | `wx.openDocument`、`wx.downloadFile` |
 | 账号 | `wx.getAccountInfoSync` |
+| 其它支持 | 位置 `openLocation`、设备 `makePhoneCall`、设置 `openSetting`、分享 `shareAppMessage`、振动、隐私授权 |
 | 地图 | `this.createSelectorQuery().select('#mapId').context()` 获取 `MapContext` 后调 `MapContext.*`（**`openMapApp` 除外**），完整方法清单见 `references/JSAPI_WHITELIST.md §2` |
 
 **组件侧禁用**：`wx.cloud.*` / 位置 / 登录 / 支付 / 其它任何业务接口（除上表已列出的能力）。组件只能收数据（接口返回的 `structuredContent` / `_meta`）、做预览、读系统信息、读写本地缓存、读账号信息、操作 `MapContext`、发声明过能力的网络请求。组件与接口处于不同 JS 上下文，**全局变量不共享**。在 `methods` / tap handler / 异步回调里主动调 `sendFollowUpMessage` / `getDimensions` 时必须现取 `wx.modelContext.getContext(this)` / `getViewContext(this)`，不要通过 `this._modelCtx` 等缓存引用调（详见 `references/COMPONENT_TEMPLATES.md`）。

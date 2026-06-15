@@ -18,7 +18,7 @@
 
 | 分类 | 接口 |
 |------|------|
-| 小程序 AI | `wx.modelContext.registerAPI('name', handler)`、`wx.modelContext.createSkill(skillPath)`（创建 skill 实例，返回 `{ use, registerAPI }`）、`wx.modelContext.expireAllCards({ componentPaths?, match? })`（标记所有 `expirable: true` 的组件卡片为过期；可按 `componentPath` 绝对路径过滤，`match: 'latest'` 只过期最近一张） |
+| 小程序 AI | `wx.modelContext.registerAPI('name', handler)`、`wx.modelContext.createSkill(skillPath)`（创建 skill 实例，返回 `{ use, registerAPI }`）、`wx.modelContext.expireAllCards({ componentPaths?, match? })`（标记所有 `expirable: true` 的组件卡片为过期；可按 `componentPath` 绝对路径过滤，`match: 'latest'` 只过期最近一张）、`wx.modelContext.getSessionId()`（获取会话 ID） |
 | 登录 | `wx.login`、`wx.checkSession` |
 | 网络 | `wx.request`、`wx.onNetworkWeakChange` / `onNetworkStatusChange` / `offNetworkWeakChange` / `offNetworkStatusChange` / `getNetworkType` / `getLocalIPAddress` |
 | 云开发 | `wx.cloud.init`、`wx.cloud.callFunction`、`wx.cloud.database` |
@@ -44,6 +44,7 @@
 | 微信运动 | `wx.getWeRunData` |
 | 账号信息 | `wx.getAccountInfoSync`（接口与组件均可调） |
 | 设置 | `wx.openSetting`、`wx.getSetting` |
+| 隐私信息授权 | `wx.getPrivacySetting`、`wx.openPrivacyContract` |
 | WiFi | `wx.startWifi` / `stopWifi` / `setWifiList` / `getWifiList` / `getConnectedWifi` / `connectWifi`、`wx.onWifiConnected` / `onWifiConnectedWithPartialInfo` / `onGetWifiList`（含对应 `off*`） |
 | 蓝牙（通用） | `wx.openBluetoothAdapter` / `closeBluetoothAdapter` / `getBluetoothAdapterState`、`wx.startBluetoothDevicesDiscovery` / `stopBluetoothDevicesDiscovery`、`wx.getBluetoothDevices` / `getConnectedBluetoothDevices`、`wx.makeBluetoothPair` / `isBluetoothDevicePaired`、`wx.onBluetoothDeviceFound` / `onBluetoothAdapterStateChange`（含对应 `off*`） |
 | 蓝牙（BLE 中心） | `wx.createBLEConnection` / `closeBLEConnection`、`wx.getBLEDeviceServices` / `getBLEDeviceCharacteristics` / `getBLEDeviceRSSI`、`wx.readBLECharacteristicValue` / `writeBLECharacteristicValue` / `notifyBLECharacteristicValueChange`、`wx.getBLEMTU` / `setBLEMTU`、`wx.onBLEMTUChange` / `onBLEConnectionStateChange` / `onBLECharacteristicValueChange`（含对应 `off*`） |
@@ -62,15 +63,20 @@
 
 | 分类 | 接口 |
 |------|------|
-| 小程序 AI（模型上下文） | `wx.modelContext.getContext(this)` → `ctx.on(NotificationType.Input, cb)`（监听原子接口入参）、`ctx.on(NotificationType.Result, cb)`（监听原子接口返回）、`ctx.sendFollowUpMessage({ content })`（上行文本/`api/call`） |
-| 小程序 AI（视图上下文） | `wx.modelContext.getViewContext(this)` → `viewCtx.getDimensions()`（获取卡片尺寸）、`viewCtx.on(NotificationType.Overflow, cb)`（监听溢出裁剪）、`viewCtx.setRelatedPage({ query })`（动态设关联页 query）、`viewCtx.expirePreviousCards({ componentPaths?, match? })`（标记**当前组件之前**已渲染、且 `expirable: true` 的卡片为过期；自身不受影响）、`viewCtx.openDetailPage({ url })`（打开半屏页面，详见 `references/HALF_SCREEN.md`） |
+| 小程序 AI（模型上下文） | `wx.modelContext.getContext(this)` → `ctx.on(NotificationType.Input, cb)`（监听原子接口入参）、`ctx.on(NotificationType.Result, cb)`（监听原子接口返回）、`ctx.sendFollowUpMessage({ content })`（上行文本/`api/call`）、`ctx.reapplyApiCall({ arguments })`（半屏页面更新卡片） |
+| 小程序 AI（视图上下文） | `wx.modelContext.getViewContext(this)` → `viewCtx.getDimensions()`（获取卡片尺寸）、`viewCtx.on(NotificationType, cb)`（监听组件事件，类型包括：`NotificationType.Input`、`NotificationType.Result`、`NotificationType.Overflow`、`NotificationType.Expire`）、`viewCtx.setRelatedPage({ path, query })`（动态设关联页及 query 参数）、`viewCtx.expirePreviousCards({ componentPaths?, match? })`（标记当前组件之前已渲染且 `expirable: true` 的卡片为过期；自身不受影响）、`viewCtx.openDetailPage({ url })`（打开半屏页面，详见 `references/HALF_SCREEN.md`）、`viewCtx.preloadDetailPage({ url })`（预加载半屏页面） |
 | 小程序 AI（卡片过期，全量） | `wx.modelContext.expireAllCards({ componentPaths?, match? })`（标记所有 `expirable: true` 的卡片为过期，**包括自身**；接口与组件均可调用）。`componentPaths` 用绝对路径（含分包前缀），多条取并集；`match: 'latest'` 只过期最近一张匹配卡 |
-| 界面 | `wx.previewMedia` |
-| 网络请求 | `wx.request`（需在 `mcp.json` 声明 `network` 能力，见 `SKILL.md §C.3`） |
-| 系统 | `wx.getDeviceInfo`、`wx.getAppBaseInfo` |
+| 界面 | `wx.previewMedia`、`wx.showToast`、`wx.hideToast` |
+| 网络请求 | `wx.request`（不支持，若调需声明 `scope.dynamic`） |
+| 系统 | `wx.getDeviceInfo`、`wx.getAppBaseInfo`、`wx.getWindowInfo` |
 | 数据缓存 | `wx.getStorage` / `setStorage` / `batchGetStorage` / `batchSetStorage` / `getStorageInfo` / `removeStorage` / `clearStorage` / `setStorageSync` / `getStorageSync` |
-| 文件 | `wx.openDocument` |
+| 文件/上传下载 | `wx.openDocument`、`wx.downloadFile` |
 | 账号信息 | `wx.getAccountInfoSync` |
+| 位置 | `wx.openLocation` |
+| 设备/设置 | `wx.makePhoneCall`、`wx.openSetting` |
+| 分享 | `wx.shareAppMessage`（支持，需在 tap 事件回调中调用） |
+| 振动 | `wx.vibrateShort`、`wx.vibrateLong` |
+| 隐私信息授权 | `wx.getPrivacySetting`、`wx.openPrivacyContract` |
 | 地图 | `this.createSelectorQuery().select('#mapId').context()` 获取 `MapContext`；`MapContext.*`（`addArc` / `addCustomLayer` / `addGroundOverlay` / `addMarkers` / `addVisualLayer` / `eraseLines` / `executeVisualLayerCommand` / `fromScreenLocation` / `getCenterLocation` / `getRegion` / `getRotate` / `getScale` / `getSkew` / `includePoints` / `initMarkerCluster` / `moveAlong` / `moveToLocation` / `on` / `removeArc` / `removeCustomLayer` / `removeGroundOverlay` / `removeMarkers` / `removeVisualLayer` / `setBoundary` / `setCenterOffset` / `setLocMarkerIcon` / `toScreenLocation` / `translateMarker` / `updateGroundOverlay`）；**`MapContext.openMapApp` 不支持** |
 
 **组件侧禁用**：`wx.cloud.*` / 位置 / 登录 / 支付 / 其它任何接口侧业务接口（除上表已列出的能力）。组件只能收数据（接口返回的 `structuredContent` / `_meta`）、做预览、读系统信息、读写本地缓存、读账号信息、操作 `MapContext`、发声明过能力的网络请求。组件与接口处于不同 JS 上下文，**全局变量不共享**。在 `methods` / tap handler / 异步回调里主动调 `sendFollowUpMessage` / `getDimensions` 时必须现取 `wx.modelContext.getContext(this)` / `getViewContext(this)`，不要通过 `this._modelCtx` 等缓存引用调（详见 `references/COMPONENT_TEMPLATES.md`）。
@@ -81,7 +87,7 @@
 
 | 不可用 API | 替代策略 |
 |-----------|---------|
-| `wx.showToast` / `hideToast` / `showModal` / `showLoading` / `hideLoading` / `showActionSheet` | 结果通过 `content` / `structuredContent` 回馈，小程序 AI 无 loading/modal 概念 |
+| `wx.showModal` / `showLoading` / `hideLoading` / `showActionSheet` | 结果通过 `content` / `structuredContent` 回馈，小程序 AI 无 loading/modal 概念（注：组件侧支持调用 `wx.showToast` / `wx.hideToast`） |
 | `wx.pageScrollTo` | 组件容器不支持滚动 |
 | `wx.createAnimation` | 用 CSS `transition/animation`（限 opacity/transform） |
 | `wx.navigateTo` / `redirectTo` / `switchTab` / `reLaunch` / `navigateBack` | 删除，小程序 AI 不在页面栈内导航 |

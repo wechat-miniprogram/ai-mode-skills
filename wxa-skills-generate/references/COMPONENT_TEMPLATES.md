@@ -12,7 +12,7 @@
 
 **`button` 特殊约束**：不可使用 `open-type`。源代码里的 `<button open-type="share">` / `open-type="getPhoneNumber"` 等必须改为 `<button bindtap="...">` + 在 tap handler 中调用 `wx.shareAppMessage` / `wx.getPhoneNumber` 等对应 JSAPI。
 
-**不支持网络请求和云开发接口**（可在 `mcp.json` 中声明 `network` 能力以开启 `wx.request`）。
+**不支持网络请求和云开发接口**（组件侧不支持直接调用 `wx.request`，若需使用网络能力需声明 `permissions.scope.dynamic`）。
 
 **渲染容器约束**：宽度随屏幕宽度变化，最小高度为宽高比 4:1，最大高度为宽高比 1:1，不超出范围时随内容自动撑高，**不支持纵向滚动，超出裁剪**（横向超长内容可用 `<scroll-view scroll-x="true">` 包裹，仅横向滚动）。**外层容器尺寸由宿主自动设置，组件根节点不要再写 `max-height` / `min-height` / `height`**——一旦组件自己设了高度，宿主的 `NotificationType.Overflow` 回调将无法触发，溢出无法被检测。**卡片比例必须从 `1:1 / 4:3 / 16:9 / 3:1 / 4:1` 五档中选一**（见 `ATOMIC_COMPONENT_DESIGN.md` 第一章）；实现层细节见 `ATOMIC_COMPONENT_CSS.md`。
 
