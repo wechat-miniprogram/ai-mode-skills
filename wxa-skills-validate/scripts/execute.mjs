@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import {
   DEFAULT_CLI_PATH, DEFAULT_AUTO_PORT, DEFAULT_TIMEOUT_MS,
-  callAgentTool, normalizeCliResult, writeJson, parseArgs,
+  callAgentTool, normalizeCliResult, writeJson, parseArgs, resolveDefaultCliPath,
 } from "./lib.mjs";
 
 const SPEC = {
@@ -51,7 +51,7 @@ async function main() {
       name: opts.name,
       args: opts.args,
       autoPort: opts["auto-port"] ?? DEFAULT_AUTO_PORT,
-      cliPath: opts["cli-path"] ?? DEFAULT_CLI_PATH,
+      cliPath: opts["cli-path"] ?? resolveDefaultCliPath(),
       skill: opts.skill,
       timeout: opts.timeout ?? DEFAULT_TIMEOUT_MS,
     });

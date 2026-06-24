@@ -4,7 +4,7 @@ import { constants as FS } from "node:fs";
 import { join, resolve, relative, dirname, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { runCli, DEFAULT_CLI_PATH } from "./lib.mjs";
+import { runCli, DEFAULT_CLI_PATH, WIN_CLI_CANDIDATES } from "./lib.mjs";
 
 const BUILTIN_RULES = {
   rules: [
@@ -896,12 +896,18 @@ const adaptTargetsForSingleSkill = ruleSet => mapTargets(ruleSet, p => {
 });
 
 async function resolveCliPath(userInput) {
+  const isWin = process.platform === "win32";
   const candidates = (typeof userInput === "string" && userInput)
     ? [userInput]
-    : [process.env.WECHAT_DEVTOOLS_CLI, process.env.WXA_CLI, DEFAULT_CLI_PATH]
-        .filter(p => typeof p === "string" && p.length > 0);
+    : [
+        process.env.WECHAT_DEVTOOLS_CLI,
+        process.env.WXA_CLI,
+        ...(isWin ? WIN_CLI_CANDIDATES : []),
+        DEFAULT_CLI_PATH,
+      ].filter(p => typeof p === "string" && p.length > 0);
   for (const p of candidates) {
-    try { await access(p, FS.X_OK); return p; } catch {}
+    // Windows 无可执行位概念，统一用存在性（F_OK）判定
+    try { await access(p, isWin ? FS.F_OK : FS.X_OK); return p; } catch {}
   }
   return null;
 }

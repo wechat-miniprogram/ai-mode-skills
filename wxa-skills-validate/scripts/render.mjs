@@ -3,7 +3,7 @@ import { readFile, unlink, mkdir } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
 import {
   DEFAULT_CLI_PATH, DEFAULT_TIMEOUT_MS,
-  callAgentRender, normalizeCliResult, writeJson, parseArgs,
+  callAgentRender, normalizeCliResult, writeJson, parseArgs, resolveDefaultCliPath,
 } from "./lib.mjs";
 
 const SPEC = {
@@ -114,7 +114,7 @@ async function main() {
       project: opts.project,
       name,
       args: opts.args || ctx.args,
-      cliPath: opts["cli-path"] ?? DEFAULT_CLI_PATH,
+      cliPath: opts["cli-path"] ?? resolveDefaultCliPath(),
       timeout: opts.timeout ?? DEFAULT_TIMEOUT_MS,
       output: finalOutput || undefined,
     });
