@@ -141,6 +141,12 @@ function removeStepContext(key) { wx.removeStorageSync(key) }
 
 每个原子接口文件遵循以下骨架，内部逻辑完全由主包对应业务决定，不要套固定范式。
 
+> ⚠️ **封装层强制复用**：网络请求**必须**通过 `require('../utils/request')` 的 `request()` 发起，禁止 API 文件中直接 `wx.request` 或自行拼 URL/header/query。API 文件只负责业务参数整理 + 响应归一化。
+>
+> ⚠️ **响应字段类型安全**：API 响应的数组字段调数组方法前加 `(x || [])` 或 `Array.isArray(x) ?` 保护，防 `TypeError` 崩溃。
+>
+> ⚠️ **响应状态码类型保护**：主包后端常返回字符串型状态码（如 PHP 接口的 `"ret_code":"1"`），不要写 `res.ret_code !== 1` 这种严格类型比较。生成代码时应显式归一化：`Number(res.ret_code) !== 1` 或 `String(res.ret_code) !== '1'`。
+
 ```javascript
 // apis/{apiName}.js
 const { errorResult, successResult } = require('../utils/util')
@@ -231,7 +237,7 @@ skill.registerAPI('{apiName2}', {apiName2})
     {
       "name": "{apiName}",
       "description": "{完整描述接口行为，含内部操作与前置依赖}",
-      "_meta": { "ui": { "componentPath": "components/{componentName}/index" } },
+      "_meta": { "ui": { "pagePath": "/pages/{page}/detail" } },
       "inputSchema": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
@@ -269,18 +275,85 @@ skill.registerAPI('{apiName2}', {apiName2})
 }
 ```
 
-> `components[]` 段（`relatedPage` / 网络能力 / `expirable` + `expiredText`）见 `SKILL.md` C.3 / C.3.1；`components[].path` 必须与对应接口的 `_meta.ui.componentPath` 字符串完全相等。`expirable` / `expiredText` 默认不写，仅在源业务确实有"卡片作废"语义时才声明，并在代码里相应调用 `wx.modelContext.expireAllCards()`（接口或组件均可，含自身）或 `wx.modelContext.getViewContext(this).expirePreviousCards()`（**仅原子组件可调用**，不含自身）。
+> `components[]` **仅在用户明确要求生成原子组件时**才有（网络能力 / `expirable` + `expiredText`，见 `SKILL.md` C.3 / C.3.1）；`components[].path` 必须与对应接口的 `_meta.ui.componentPath` 字符串完全相等。`expirable` / `expiredText` 默认不写，仅在源业务确实有"卡片作废"语义时才声明，并在代码里相应调用 `wx.modelContext.expireAllCards()`（接口或组件均可，含自身）或 `wx.modelContext.getViewContext(this).expirePreviousCards()`（**仅原子组件可调用**，不含自身）。进小程序见下方 "handoff 接力页"（`_meta.ui.pagePath` + 返回值 `handoff`）。
 
-**运行时给 `relatedPage` 附加 query**（在组件 `created` 里现取 `viewCtx`，按 `Result` 数据动态拼）：
+### handoff 接力页（进小程序的主要方式，见 `SKILL.md` C.3.3）
+
+默认只返回文本 + 小程序卡片，用户点卡片后由平台 handoff 进接力页。给"执行完停下等用户确认"类接口配 `pagePath` 并在返回值加 `handoff`。
+
+**① `mcp.json`**：接口 `_meta.ui` 加 `pagePath`（接力页 path，不含 query）：
+
+```json
+{
+  "apis": [
+    {
+      "name": "queryDrugUsage",
+      "_meta": {
+        "ui": {
+          "pagePath": "/pages/drug/detail"
+        }
+      }
+    }
+  ]
+}
+```
+
+**② 原子接口返回值**：顶层（与 `content` / `structuredContent` 同级）加 `handoff`，**兼容对象（立即模式）与函数（延迟模式）两种形态**：
 
 ```js
-const viewCtx = wx.modelContext.getViewContext(this)
-const modelCtx = wx.modelContext.getContext(this)
-modelCtx.on(NotificationType.Result, (data) => {
-  const sc = data.result && data.result.structuredContent
-  if (sc && sc.orderId) viewCtx.setRelatedPage({ query: `orderId=${sc.orderId}` })
+async function queryDrugUsage({ name }) {
+  const drug = await fetchDrug(name)
+  return {
+    isError: false,
+    content: [{ type: 'text', text: `已查询到${drug.name}用法用量` }],
+    structuredContent: drug,
+    // 函数模式（延迟）：入参为对象，data.result = 模型修改后的完整 result
+    handoff: ({ result }) => ({
+      query: { drugId: result.structuredContent.drugId },   // 对象：页面 query 键值对
+      payload: result.structuredContent,                    // 可选：接力页首屏加速
+      card: { title: `${result.structuredContent.name} · 用法用量` },  // 可选：卡片展示信息
+    }),
+    // —— 或者无需模型筛选时，直接用对象（立即模式，链路更短、更快）：
+    // handoff: { query: { drugId: drug.drugId }, payload: drug, card: { title: `${drug.name} · 用法用量` } },
+  }
+}
+```
+
+> 形态选择：无需模型改动 result → 用**对象**（立即模式，更快）；需要用模型修改后的 result 拼 query/payload → 用**函数**（延迟模式，入参 `{ result }`，`result` 为模型修改后的完整 result）。
+
+**③ 主包 `app.js`**：`onLaunch` 内注册（须早于 handoff 触发的 `onBeforeAppRoute`）：
+
+```js
+App({
+  onLaunch() {
+    wx.onAgentHandoff(({ pageId, path, query, payload }) => {
+      this.globalData.agentHandoffs = this.globalData.agentHandoffs || {}
+      this.globalData.agentHandoffs[pageId] = { path, query, payload }
+    })
+  },
 })
 ```
+
+> 回调参数：`pageId`（目标页实例 ID，用于按页投递 payload）/ `path`（平台实际打开的 path，不含 query）/ `query`（对象，页面 query 键值对，同 `handoff.query`）/ `payload?`。仅 handoff 场景触发，普通打开小程序不触发；`wx.offAgentHandoff()` 取消监听。
+
+**④ 接力业务页**：`onLoad(query)` 消费——`query` 为对象（键值对），`payload` 有则先 `setData` 加速首屏：
+
+```js
+Page({
+  onLoad(query) {
+    const handoffs = getApp().globalData.agentHandoffs || {}
+    const handoff = handoffs[this.getPageId()]
+    delete handoffs[this.getPageId()]
+
+    if (handoff && handoff.payload) this.setData({ drug: handoff.payload })
+
+    const drugId = query.drugId
+    if (drugId) this.loadDrugDetail(drugId).then(drug => this.setData({ drug }))
+  },
+})
+```
+
+> `wx.openAgent` / `wx.navigateBackAgent` 当前会失败，接力页勿依赖"打开/返回 Agent 对话"。
 
 ---
 

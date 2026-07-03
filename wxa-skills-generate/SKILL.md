@@ -3,7 +3,7 @@ name: wxa-skills-generate
 description: 分析小程序项目源代码（含压缩/混淆），识别核心业务步骤，提取网络接口与 JSAPI 调用，生成符合 wx.modelContext 规范的技能分包（含原子接口 + 原子组件），并完成 app.json / project.config.json 配置集成。在以下场景触发：把小程序页面能力改造为小程序 AI 原子接口、生成 skills/ 分包代码、从源项目派生 MCP 工具、小程序 AI 的开发模式代码生成。仅负责静态生成，生成完成后必须交棒 wxa-skills-validate 做校验。
 metadata:
   author: Tencent
-  version: '0.1.20'
+  version: '0.2.0'
 ---
 
 # wxa-skill-generate
@@ -14,7 +14,7 @@ metadata:
 
 - ✅ 本 skill 做：源码分析、原子接口设计、代码生成、`app.json` / `project.config.json` 集成
 - ❌ 本 skill 不做：静态校验、真机执行、渲染验证（这些全部由 `wxa-skills-validate` 负责）
-- 📦 交付：`skills/{skill-name}/`（含 `mcp.json`、`SKILL.md`、`index.js`、原子接口实现文件、工具模块、组件目录）+ 配置文件更新
+- 📦 交付：`skills/{skill-name}/`（含 `mcp.json`、`SKILL.md`、`index.js`、原子接口实现文件、工具模块；组件目录**仅在用户明确要求生成原子组件时**才有）+ 配置文件更新
 
 ## 依赖
 
@@ -23,12 +23,12 @@ metadata:
   - `scripts/probe.mjs` + `scripts/probe-lib.mjs`（与本 skill 同目录）
   - `miniprogram-automator`：阶段 3.6 环境检查时由模型安装到 skill 的 `scripts/` 目录（`cd <skill-path>/scripts && npm install miniprogram-automator`），**禁止安装到小程序源项目**
   - 微信开发者工具 CLI 已安装且「服务端口」已开启（支持 `WX_CLI_PATH` 环境变量 / 自动检测）
-  - probe 为**强制触发**：阶段 3 标记 `requiresRuntimeProbe: true` 或命中 T1~T6 时**必须执行 probe，禁止跳过**（详见阶段 3.6 与 `references/RUNTIME_PROBE.md`），通过 `evaluate` 覆写 `wx.request` 同时捕获请求参数与响应数据
+  - probe 策略为 **probe-first 验证 + 静态分析兜底**：阶段 3 选中的业务接口**默认进 plan 探测**；命中 T1~T6 或标记 `requiresRuntimeProbe: true` 时**必须执行、禁止跳过**；非必探接口在环境不可用时可回退静态结果（详见阶段 3.6 与 `references/RUNTIME_PROBE.md`）。通过 `evaluate` 覆写 `wx.request` 捕获请求参数与响应；支持点击触发、进页面自动发、`request`/`evaluate` 非 UI 直发三类，并支持「一个能力 = 多请求」的有序捕获
 
 ## 术语约定
 
 - **原子接口**：对外暴露给小程序 AI 的可调用能力。约定路径 `skills/{skill}/apis/{name}.js`（validator 也兼容 `tools/services/` / `tools/`）
-- **原子组件**：用于渲染原子接口返回数据的 UI。**强约束路径** `skills/{skill}/components/{name}/`（与 `mcp.json._meta.ui.componentPath` 严格相等）
+- **原子组件**：用于渲染原子接口返回数据的 GUI 卡片。**默认不生成**——仅当用户明确要求生成原子组件时才产出；否则原子接口只返回文本 + 数据 + handoff（进接力页，见 C.3.3）。生成时**强约束路径** `skills/{skill}/components/{name}/`（与 `mcp.json._meta.ui.componentPath` 严格相等）
 - **压缩代码**：单行超 500 字符、变量名单字符的产物（含混淆）
 
 ## 参考资料索引
@@ -43,7 +43,8 @@ metadata:
 | `references/ATOMIC_COMPONENT_CSS.md` | 原子组件 WXSS **实现规范**（容器约束、单位换算、省略规范、禁用清单） | 阶段 5 样式编写 |
 | `references/STYLE_MIGRATION.md` | 源样式提取 + 字段映射的完整工作流 | 阶段 5 组件生成前（强制前置） |
 | `references/HALF_SCREEN.md` | 半屏页面（`viewCtx.openDetailPage`）API、上行消息、禁用接口/组件清单 | **按需**——仅当业务确有"详情 / 补充信息"语义时（默认不生成） |
-| `references/RUNTIME_PROBE.md` | 运行时探测（automator probe）触发条件、SOP、失败兜底、结果接入。**命中 T1~T6 时必须执行，不可跳过** | 阶段 3.6——命中触发条件时**强制执行** |
+| `references/RUNTIME_PROBE.md` | 运行时探测（automator probe）触发条件、SOP、失败兜底、结果接入。**probe-first 验证 + 静态分析兜底** | 阶段 3.6——选中接口默认探测，命中 T1~T6 必探 |
+| `references/API_EXTRACTION.md` | 接口可请求性分析 + 签名模块可拷贝性判断 + 接口功能匹配 + 鉴权代码生成详细流程 + request.js 源码核对清单 | 阶段 3.4.1 / 阶段 5 鉴权代码生成 |
 
 ---
 
@@ -90,19 +91,17 @@ metadata:
 | 登录 | `wx.login`、`wx.checkSession` |
 | 网络 | `wx.request`、网络状态 `getNetworkType` / `on*NetworkStatusChange` |
 | 云开发 | `wx.cloud.init` / `callFunction` / `database` |
-| 位置 | `wx.getLocation` / `getFuzzyLocation` / `chooseLocation` / `openLocation` |
+| 位置 | `wx.getLocation` / `getFuzzyLocation`（**不含** `chooseLocation` / `openLocation`） |
 | 系统 | `wx.getDeviceInfo`、`wx.getAppBaseInfo`、`wx.getWindowInfo` |
 | 数据缓存 | `wx.{get,set,remove,clear,batchGet,batchSet}Storage`（含 `Sync`）、`wx.getStorageInfo` |
 | 上传下载 | `wx.uploadFile`、`wx.downloadFile` |
-| 微信支付 | `wx.requestPayment`、`wx.openBusinessView`（多种 `businessType`） |
 | 订阅消息 | `wx.requestSubscribeMessage` |
-| 授权设置 | `wx.authorize`、`wx.openSetting`、`wx.getSetting` |
-| 设备 | `wx.makePhoneCall`、`wx.scanCode` |
-| 媒体 | `wx.chooseMedia`、`wx.chooseMessageFile`、`wx.saveImageToPhotosAlbum`、`wx.getImageInfo` |
-| 分享/手机号 | `wx.shareAppMessage`、`wx.getPhoneNumber`、`wx.getRealtimePhoneNumber` |
+| 授权设置 | `wx.authorize`、`wx.getSetting`（**不含** `openSetting`） |
+| 图片 | `wx.getImageInfo` |
+| 手机号 | `wx.getPhoneNumber`、`wx.getRealtimePhoneNumber` |
 | 账号 | `wx.getAccountInfoSync`（接口与组件均可调） |
 
-> 其他场景（人脸核身、发票、地址、微信运动、城市服务、WiFi、蓝牙/BLE、WebSocket、TCP/UDP、mDNS、传感器、加密、文件 `wx.openDocument` 等）涉及时一律查 **`references/JSAPI_WHITELIST.md §1`** 完整表，再决定能否使用。
+> 支付类、系统选择器/采集（`choose*` / `scanCode` / `saveImageToPhotosAlbum`）、主动打开原生页/面板（`openLocation` / `makePhoneCall` / `openDocument` / `shareAppMessage` / `openSetting` / `openPrivacyContract`）**不在接口侧**——见 C.2 / `references/JSAPI_WHITELIST.md §2.1`（动态组件）。其他场景（人脸核身、微信运动、加密、WiFi、蓝牙/BLE、WebSocket、TCP/UDP、mDNS、传感器等）查 **`references/JSAPI_WHITELIST.md §1`** 完整表。
 
 #### C.2 组件侧白名单（高频，完整清单见 `references/JSAPI_WHITELIST.md §2`）
 
@@ -111,7 +110,8 @@ metadata:
 | 分类 | 高频接口 |
 |------|---------|
 | 小程序 AI | `getContext(this)`（支持 `reapplyApiCall` 等）、`getViewContext(this)`（支持 `preloadDetailPage` 及 `on` 事件等）、`expireAllCards` / `expirePreviousCards` |
-| 网络请求 | `wx.request`（不支持，若调需声明 `scope.dynamic`） |
+| 网络请求 | `wx.request`（普通组件不支持，须声明 `scope.dynamic` 后在动态组件用） |
+| 动态组件专属 | 声明 `scope.dynamic` 后可用（tap 回调触发）：支付类 `requestPayment` / `openBusinessView` 等、系统选择器 `chooseLocation` / `chooseAddress` / `chooseInvoice` / `chooseInvoiceTitle`、媒体采集 `chooseMedia` / `chooseMessageFile` / `saveImageToPhotosAlbum`、`scanCode`（详见 `references/JSAPI_WHITELIST.md §2.1`） |
 | 系统 | `wx.getDeviceInfo`、`wx.getAppBaseInfo`、`wx.getWindowInfo` |
 | 数据缓存 | `wx.getStorage` / `setStorage` 全套（含 `Sync`） |
 | 媒体/交互 | `wx.previewMedia`、`wx.showToast`、`wx.hideToast` |
@@ -122,27 +122,23 @@ metadata:
 
 **组件侧禁用**：`wx.cloud.*` / 位置 / 登录 / 支付 / 其它任何业务接口（除上表已列出的能力）。组件只能收数据（接口返回的 `structuredContent` / `_meta`）、做预览、读系统信息、读写本地缓存、读账号信息、操作 `MapContext`、发声明过能力的网络请求。组件与接口处于不同 JS 上下文，**全局变量不共享**。在 `methods` / tap handler / 异步回调里主动调 `sendFollowUpMessage` / `getDimensions` 时必须现取 `wx.modelContext.getContext(this)` / `getViewContext(this)`，不要通过 `this._modelCtx` 等缓存引用调（详见 `references/COMPONENT_TEMPLATES.md`）。
 
-#### C.3 组件配置（关联页面 + 网络能力）
+#### C.3 组件配置（原子组件按需生成 + 网络能力）
 
-每个带 `_meta.ui.componentPath` 的接口，对应组件必须在 `mcp.json` 顶层 `components[]` 中声明一条记录，**`path` 必须与该接口的 `_meta.ui.componentPath` 字符串完全相等**（含末尾 `/index`，严格相等比对）；**`relatedPage` 为必填**（关联小程序页面 path，用于卡片右上角"进入小程序"入口），**必须以 `/` 开头**（绝对路径），且去掉前导 `/` 后必须是项目 `app.json.pages[]` 中真实存在的页面，业务上无对应页面时**兜底用 `/<app.json.pages[0]>`（首页，同样带前导 `/`）**。网络能力（`permissions.scope.dynamic`）按需声明。
+**默认不生成原子组件**。原子接口只返回文本 + `structuredContent` + `handoff`（进接力页，见 C.3.3）。**仅当用户明确要求生成原子组件（GUI 卡片）时**才生成：对应接口声明 `_meta.ui.componentPath`，并在 `mcp.json` 顶层 `components[]` 声明一条记录，**`path` 必须与该接口 `_meta.ui.componentPath` 字符串完全相等**（含末尾 `/index`，严格相等比对）。网络能力（`permissions.scope.dynamic`）按需声明。
 
 ```json
 {
   "components": [
     {
-      "path": "components/order-list/index",
-      "relatedPage": "/pages/order/list"
+      "path": "components/order-list/index"
     },
     {
       "path": "components/weather-card/index",
-      "relatedPage": "/pages/weather/index",
       "permissions": { "scope.dynamic": { "desc": "声明使用场景" } }
     }
   ]
 }
 ```
-
-运行时若需要给关联页面附加 query 参数，在组件 `created` 里现取 `viewCtx.setRelatedPage({ query })`，示例代码见 `references/CODE_TEMPLATES.md` 第四节。该约束被静态规则强制校验。
 
 #### C.3.1 组件过期态声明（按需，非强制）
 
@@ -165,6 +161,26 @@ metadata:
 - **半屏内"下一步"**：原生页面 `wx.modelContext.getContext().sendFollowUpMessage(...)`（**不传 `this`**）；web-view h5 走 `WeixinJSBridge.invoke('invokeMiniProgramAPI', { name: 'sendFollowUpMessage', arg })`。上行后半屏自动关闭回小程序 AI 对话
 - **场景值**：1433 / 1434；左上角关闭按钮位置用 `wx.getDetailPageCloseButtonBoundingClientRect` 适配
 - **禁用清单**：跳出类（`navigateToMiniProgram` / 公众号 / 视频号 / 表情 / 客服）、页面路由（`navigateTo` / `redirectTo` / `switchTab` / `reLaunch` / `wx.router.*`）、聊天工具（`shareXxxToGroup`）、地图 `MapContext.openMapApp`、广告（`createInterstitialAd` 等 + `<ad>` `<ad-custom>` 组件）、导航组件（`<navigator>` / `<functional-page-navigator>`）—— 完整清单与示例代码见 `references/HALF_SCREEN.md`
+
+#### C.3.3 handoff 接力页（进小程序的主要方式）
+
+进小程序统一走 **handoff**。默认流程：原子接口返回**文本 + 小程序卡片**，用户点卡片后由平台 handoff 进入小程序内的**接力业务页**继续操作。
+
+**何时必须配**：若某原子接口执行完会**停下等用户确认**（展示小程序卡片、等用户点击进小程序），必须为它配置 `pagePath`，否则用户无法进入业务页。纯数据、无停顿接续的接口可不配。
+
+四项适配（详见 `references/CODE_TEMPLATES.md` "handoff 接力页" 节）：
+
+1. **`mcp.json`**：在该接口 `apis[]._meta.ui` 加 `pagePath`（接力页 path，**不含 query**；与 `componentPath` 同级，`componentPath` 仅在生成组件时才有）。
+2. **原子接口返回值**：顶层（与 `content` / `structuredContent` 同级）增加 `handoff`，**兼容两种形态**：
+   - **对象（立即模式，更快）**：`handoff: { query, payload?, card? }`——模型无需筛选数据时直接返回对象，平台即时生成 handoff，链路更短、更快。
+   - **函数（延迟模式）**：`handoff: ({ result }) => ({ query, payload?, card? })`——需要用**模型修改后的 result** 时返回函数，入参对象的 `result` 即模型修改后的完整 result。
+   字段：`query` 为**对象**（页面 query 键值对，如 `{ drugId }`）；`payload` 可选（接力页首屏加速数据）；`card` 可选（卡片展示信息，如 `{ title }`）。
+3. **`app.js`**：`onLaunch` 内注册 `wx.onAgentHandoff(cb)`（须早于 handoff 触发的 `onBeforeAppRoute`），把 `{ path, query, payload }` 按 `pageId` 暂存。
+4. **接力业务页**：`onLoad(query)` 中 `query` 为对象（键值对，同 `handoff.query`）；若 `wx.onAgentHandoff` 投递了 `payload` 则先 `setData` 加速首屏。
+
+平台代做（无需自己实现路由）：按 `pagePath` 打开目标页 → 把 `handoff.query` 原样注入 `onLoad(query)` → 通过 `wx.onAgentHandoff` 回调投递 `path` / `query` / `payload`。
+
+> **禁用**：`wx.openAgent` / `wx.navigateBackAgent` 当前基础库侧未打通，调用会失败——接力页内**不要**依赖"打开 Agent / 返回 Agent 对话"，后续流程由业务页自行完成。
 
 #### C.4 不可迁移 JSAPI（接口与组件均禁用，高频示例；完整清单见 `references/JSAPI_WHITELIST.md §3`）
 
@@ -208,6 +224,7 @@ metadata:
 阶段 0 — 业务需求澄清（强制前置）
 - [ ] 判定用户场景是否明确（两项判定）
 - [ ] 不明确 → 最小扫描 + 引导澄清 + 等待确认
+- [ ] 确认是否生成原子组件（用户未明确要求 → 默认不生成，只做原子接口 + handoff）
 - [ ] 产出"目标业务场景 + 期望原子能力"清单
 
 阶段 1 — 项目扫描
@@ -225,20 +242,20 @@ metadata:
 - [ ] 完整依赖链路
 - [ ] 鉴权依赖确认
 - [ ] 可行性三级评定（高/中/无置信）
-- [ ] 逐条检查 T1~T6 触发条件，**命中任一即标记 `requiresRuntimeProbe: true`**
-- [ ] ⚠️ **`requiresRuntimeProbe: true` 时必须执行 probe，禁止标记后跳过**：环境检查（自动安装 automator）→ 通知用户 → 生成 plan.json → 执行 `scripts/probe.mjs` → 结果写入 `<源项目>/.ai-mode-skills/probe/` → 合并写入 `merged-result.json` → 接入阶段 4
-- [ ] 未命中 T1~T6 但属于建议探测场景（压缩源码 / outputSchema 不确定）→ 执行 probe
+- [ ] 选中的业务接口**默认进 plan 探测**；逐条检查 T1~T6，命中任一即标记 `requiresRuntimeProbe: true`（必探硬底线）
+- [ ] 执行 probe（一次性批量）：环境检查（自动安装 automator）→ 通知用户 → 生成 plan.json → 执行 `scripts/probe.mjs` → 结果写入 `<源项目>/.ai-mode-skills/probe/` → 合并写入 `merged-result.json` → 接入阶段 4。命中 T1~T6 **禁止只标记不执行**；非必探接口在环境不可用时可回退静态结果
 
 阶段 4 — 原子接口设计
-- [ ] 原子接口清单（含 name / description / inputSchema / outputSchema / _meta.ui.componentPath）
+- [ ] 原子接口清单（含 name / description / inputSchema / outputSchema；进小程序的接口配 _meta.ui.pagePath + 返回 handoff；_meta.ui.componentPath 仅当用户要求生成原子组件时才有）
 - [ ] API 依赖图
 - [ ] storage key 清单
 
 阶段 5 — 代码生成
-- [ ] 每个原子组件符合 `ATOMIC_COMPONENT_DESIGN.md`（尺寸档位 / 背景 / 边距 / 字号 + 透明度 / 布局 / 操作区）
-- [ ] 每个原子组件走完 STYLE_MIGRATION.md 的 7 步
-- [ ] 每个组件内的可交互元素都绑了 bindtap，tap handler 优先上行 `{ content: [{ type: 'text', text }, { type: 'api/call', data: { name, arguments } }] }` 组合，text 是用户视角的简短中文、`name` 在 mcp.json 中存在、`arguments` 与 inputSchema 对齐；无法映射到原子接口时可退回单 `text` 形态
-- [ ] skills/{skill-name}/ 目录完整（mcp.json / SKILL.md / index.js / apis/* / utils/* / components/*）
+阶段 5 — 代码生成
+- [ ] 进小程序的接口已配 _meta.ui.pagePath + 返回值顶层 handoff（见 C.3.3）
+- [ ] `utils/request.js` 鉴权代码完整复刻源码 request 封装（通用 header/query/签名/预处理，模块级鉴权变量不留空）
+- [ ] （仅当用户要求生成原子组件时）每个原子组件符合 `ATOMIC_COMPONENT_DESIGN.md`（尺寸档位 / 背景 / 边距 / 字号 + 透明度 / 布局 / 操作区）并走完 STYLE_MIGRATION.md 的 7 步；可交互元素绑 bindtap，tap handler 优先上行 `{ content: [{ type: 'text', text }, { type: 'api/call', data: { name, arguments } }] }` 组合，text 是用户视角简短中文、`name` 在 mcp.json 中存在、`arguments` 与 inputSchema 对齐；无法映射时退回单 `text`
+- [ ] skills/{skill-name}/ 目录完整（mcp.json / SKILL.md / index.js / apis/* / utils/*；仅生成组件时含 components/*）
 - [ ] SKILL.md 已按 `references/CODE_TEMPLATES.md` 第五节的 5 节结构与禁止项写完（路由说明，非接口手册）
 
 阶段 6 — 配置集成
@@ -258,7 +275,7 @@ metadata:
 |------|------|
 | 正常主干 | 0 → 1 → (2) → 3 → 4 → 5 → 6 → 交棒 `wxa-skills-validate` |
 | 用户已明确能力 | 跳过 2，0 → 1 → 3 |
-| 阶段 3 命中 probe 触发条件 | 3.5 → **3.6（probe，强制执行）** → 4。⚠️ **禁止 3.5 → 4 跳过 3.6** |
+| 阶段 3（选中接口默认探测） | 3.5 → **3.6（probe）** → 4。命中 T1~T6 时 ⚠️ **禁止 3.5 → 4 跳过 3.6**；非必探接口环境不可用可回退静态结果 |
 | probe 失败，离线兜底成功 | 3.6 → 4（使用离线兜底数据） |
 | probe + 离线兜底均失败 | 3.6 → 阻断规则 B |
 | validator 反馈 T1~T6 / A/B/C/D 类错误 | 回本 skill 阶段 5 改代码 |
@@ -315,6 +332,7 @@ metadata:
    - 希望把哪些业务场景做成小程序 AI 的 SKILL？
    - 每个场景希望暴露给小程序 AI 的原子能力大致是什么？
    - 是否涉及登录态、支付、位置、云开发等敏感能力？
+   - 是否需要生成**原子组件（GUI 卡片）**？**默认不生成**——只做原子接口 + handoff（点小程序卡片进接力页）；仅当你明确需要对话内卡片式 GUI 时才生成。用户未提及即按"不生成"处理。
 4. **等用户回复后**才能进入阶段 1。严禁在用户确认前扫描源码或生成代码。
 
 **澄清输出清单模板**：
@@ -327,6 +345,7 @@ metadata:
 技术约束：
   - 是否涉及支付/登录/位置：是/否
   - 是否使用云开发：待阶段 1 扫描确认
+  - 是否生成原子组件（GUI 卡片）：是/否（用户未明确 → 默认否，只生成原子接口 + handoff）
 ```
 
 ---
@@ -444,9 +463,9 @@ metadata:
 
 **3.6 运行时探测（probe）**：
 
-> 命中 T1~T6 时**强制执行**，仅在环境不可用/用户拒绝时允许降级。完整 SOP 见 `references/RUNTIME_PROBE.md`。
+> **策略**：probe-first 验证 + 静态分析兜底——选中的业务接口**默认进 plan 探测**；静态分析负责选接口、生成 plan、给出 method/鉴权/URL 路径，probe 负责验证真实 URL + 抓真实响应结构。完整 SOP 见 `references/RUNTIME_PROBE.md`。
 
-**触发条件**（命中任一即执行）：
+**必探硬底线**（命中任一即必探，仅环境不可用/用户拒绝时降级；命中后禁止只标记不执行）：
 
 | # | 条件 | 原因 |
 |---|------|------|
@@ -457,7 +476,9 @@ metadata:
 | T5 | 中置信且用户也不确定 | 静态匹配不足 |
 | T6 | 参数传递链 >3 跳 + globalData | 静态追溯不可靠 |
 
-建议探测（非强制）：压缩源码、字段类型不确定、T3b 可从 wxml 推断但需验证嵌套结构。
+**仅验证类**（URL 常量 + 响应结构 JS 字段访问清晰）：probe 成功则覆盖，环境不可用时直接采用静态结果、不阻断。
+
+**触发方式**（plan 的 `trigger`）：点击/输入（`tap`/`input`/`callMethod`）、进页面自动发（`trigger` 留空）、非 UI 直发（`request` 直调 wx.request / `evaluate` 执行取数函数）。一个能力串多请求时 `matchUrlIncludes` 用数组按序捕获。
 
 **执行流程**：
 
@@ -489,13 +510,13 @@ metadata:
 
 **4.1 技能划分**：同业务域（商品/订单/地址）原子接口聚合到同一 skill；共享 storage 上下文的接口必须在同一 skill 内；每 skill 推荐 3-8 个原子接口（更多则按子业务拆分）。
 
-**4.2 接口字段**：每条接口含 `name`（驼峰、全局唯一）/ `description`（含内部串联操作，帮助小程序 AI 决策）/ `inputSchema`（仅小程序 AI 需从用户获取的参数；无参用 `{"type":"object","properties":{}}`）/ `outputSchema`（对应 `structuredContent`）/ `_meta.ui.componentPath`（**可选**，格式 `components/xxx/index`，纯操作型/中间态可省；声明则组件目录必须 4 文件齐全）。
+**4.2 接口字段**：每条接口含 `name`（驼峰、全局唯一）/ `description`（含内部串联操作，帮助小程序 AI 决策）/ `inputSchema`（仅小程序 AI 需从用户获取的参数；无参用 `{"type":"object","properties":{}}`）/ `outputSchema`（对应 `structuredContent`）/ `_meta.ui.pagePath`（**按需**，接力页 path、不含 query；"执行完停下等用户确认"类接口需配，配合返回值 `handoff`，详见 C.3.3）/ `_meta.ui.componentPath`（**仅当用户明确要求生成原子组件时**才声明，格式 `components/xxx/index`；声明则组件目录必须 4 文件齐全）。
 
 > **多模态入参**：当接口需要用户上传图片（如 P 图、图像识别）时，对应 `inputSchema.properties.<field>` 加 `"format": "image"`，类型为 `string`（运行时填本地图片路径）。小程序 AI 输入框会据此识别为多模态字段、引导用户上传图片。
 
-**4.3 按需关联组件**：返回值类型 → 组件模板对照（详见 `references/COMPONENT_TEMPLATES.md`）：列表/卡片项 → 通用列表；详情/单对象 → 详情卡片；购物车/带数量总价 → 购物车；下单成功/支付结果/操作确认 → 状态结果；单值/中间数据 → 可不配组件，需收束反馈时用状态结果（简化版）。
+**4.3 进小程序方式（默认 handoff，不默认生成组件）**：默认**不生成原子组件**——需接续操作/查看详情的接口，配 `_meta.ui.pagePath` + 返回 `handoff`（见 C.3.3），用户点小程序卡片进接力页。**仅当用户明确要求生成原子组件（GUI 卡片）时**，才按返回值类型对照组件模板（详见 `references/COMPONENT_TEMPLATES.md`）：列表/卡片项 → 通用列表；详情/单对象 → 详情卡片；购物车/带数量总价 → 购物车；下单成功/支付结果/操作确认 → 状态结果。
 
-**4.4 产出物示例**：
+**4.4 产出物示例**（默认形态：无组件，配 handoff）：
 
 ```json
 [{
@@ -505,9 +526,11 @@ metadata:
   "description": "根据关键词检索商品，返回商品列表",
   "inputSchema": { "type": "object", "properties": {} },
   "outputSchema": { "type": "object", "properties": { "items": { "type": "array" } } },
-  "_meta": { "ui": { "componentPath": "components/item-list/index" } }
+  "_meta": { "ui": { "pagePath": "/pages/goods/list" } }
 }]
 ```
+
+> 用户明确要求生成原子组件时，才在 `_meta.ui` 追加 `componentPath: "components/item-list/index"` 并生成组件目录。
 
 API 依赖图（仅在通过 storage 传上下文时必备）：
 
@@ -533,7 +556,9 @@ storage key 命名统一 `skills_{skillName}_{dataName}`，列表含 `key` / 写
 
 代码模板见 `references/CODE_TEMPLATES.md`、组件模板见 `references/COMPONENT_TEMPLATES.md`、**设计规范见 `references/ATOMIC_COMPONENT_DESIGN.md`（最高优先级）**、CSS 实现规范见 `references/ATOMIC_COMPONENT_CSS.md`。
 
-### 5.0 三个强制前置（写任何组件 WXML/WXSS 前必须按序走完）
+### 5.0 三个强制前置（**仅当用户明确要求生成原子组件时**适用；写任何组件 WXML/WXSS 前必须按序走完）
+
+> 默认不生成原子组件 → 本节整节跳过，只生成原子接口 + handoff。仅当用户明确要求生成 GUI 卡片时才执行。
 
 | 编号 | 主题 | 关键要点 | 详见 |
 |------|------|---------|------|
@@ -575,9 +600,9 @@ wx.modelContext.getContext(this).sendFollowUpMessage({
 
 ### 5.2 mcp.json + 技能自身 SKILL.md + 返回值 + 日志
 
-- **`mcp.json`**：顶层 `{ "apis": [...] }`，每项必含 `name` / `description` / `inputSchema` / `outputSchema` / `_meta.ui.componentPath`；可含 `components` 数组（声明组件网络能力，详见 C.3）。完整字段示例见 `references/CODE_TEMPLATES.md` 第四节
+- **`mcp.json`**：顶层 `{ "apis": [...] }`，每项必含 `name` / `description` / `inputSchema` / `outputSchema`；进小程序的接口按需加 `_meta.ui.pagePath`（配合返回值 `handoff`）；`_meta.ui.componentPath` 与 `components[]` **仅在用户明确要求生成原子组件时**才有（`components[]` 声明组件网络能力，详见 C.3）。完整字段示例见 `references/CODE_TEMPLATES.md` 第四节
 - **技能自身 `SKILL.md`**（**文件名严格全大写**）定位"路由说明"，**只允许 5 节按序**：能力域定位 → 触发场景（用户原话 few-shot）→ 不适用范围 → 前置条件 → 使用顺序。**通篇禁止**：驼峰 apiName / `inputSchema` / `outputSchema` / 参数表 / 返回值表 / `componentPath` / storage key / 接口依赖图 / 安装 CLI 运维。完整模板见 `references/CODE_TEMPLATES.md` 第五节
-- **返回值格式**：`{ isError?, content: [{type:'text', text}], structuredContent?, _meta? }`——`content` 给 LLM 文本，`structuredContent` 对应 `outputSchema`，`_meta` 对 LLM 不可见可传 UI 组件
+- **返回值格式**：`{ isError?, content: [{type:'text', text}], structuredContent?, _meta?, handoff? }`——`content` 给 LLM 文本，`structuredContent` 对应 `outputSchema`，`_meta` 对 LLM 不可见可传 UI 组件；`handoff`（**进小程序按需**，顶层与上述字段同级）为**对象** `{ query, payload?, card? }`（立即模式）或**函数** `({ result }) => ({ query, payload?, card? })`（延迟模式，`result` 为模型修改后的完整 result），`query` 为页面 query 键值对对象，详见 C.3.3
 - **日志规范**：原子接口必打 入口 / 入参 / 请求前后 / 出口 / catch；原子组件必打 `created`/`attached` / 收到 Result / `setData` / `NotificationType.Overflow`（**必监听**，用于校验裁剪）。统一前缀 `[ai-mode]`。**日志不打够等于没日志**——真机失败看不到关键节点 → 回阶段 5 补齐重跑
 
 ---
@@ -598,6 +623,7 @@ wx.modelContext.getContext(this).sendFollowUpMessage({
 - `agent.skills[].path` 指向 `skills/{skill-name}` 目录
 - `subPackages` 中 `skills` 整体作为 `independent: true` 的独立分包；**多 skill 共用同一个分包**——新增 skill 只在 `agent.skills[]` 里追加，**不要**为每个 skill 加一条 `subPackages` 条目
 - `project.config.json` 的 `packOptions.include` 需含 `{ "type": "folder", "value": "skills" }`
+- **handoff（按需）**：若有接口配了 `_meta.ui.pagePath` 并返回 `handoff`，在主包 `app.js` 的 `onLaunch` 内注册 `wx.onAgentHandoff`（详见 C.3.3 与 `references/CODE_TEMPLATES.md` "handoff 接力页" 节）
 
 ---
 

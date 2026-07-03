@@ -1,8 +1,10 @@
-# validate.mjs 内置规则详解（V001~V014）
+# validate.mjs 内置规则详解（V001~V017）
 
 > 本文件列出 `scripts/validate.mjs` 内置的所有校验规则。当 `validate-report.json` 中出现未知的 `id` 时按本文定位。
 >
 > 自定义规则通过 `--rules <path>` 合并（相同 id 覆盖内置）。
+>
+> **规则编号稳定、不回收**：编号一经使用即固定，废弃规则直接留空（当前空档：V004、V015），不重排后续编号，以保证 `validate-report.json` 的 id、`--rules` 覆盖与历史引用不错位。
 
 ---
 
@@ -22,8 +24,8 @@
   - [V011 setData-WXML 绑定一致性](#v011-setdata-wxml-绑定一致性)
   - [V012 原子接口若关联原子组件则需文件齐全](#v012-原子接口若关联原子组件则需文件齐全)
   - [V014 SKILL.md 必须存在且文件名严格大写](#v014-skillmd-必须存在且文件名严格大写)
-  - [V015 原子组件必须配置关联小程序页面](#v015-原子组件必须配置关联小程序页面)
   - [V016 app.json 的 agent.skills[].description 必须存在且非空](#v016-appjson-的-agentskillsdescription-必须存在且非空)
+  - [V017 handoff 接力页 pagePath 校验](#v017-handoff-接力页-pagepath-校验)
 - [规则与错误类型映射](#规则与错误类型映射)
 
 ---
@@ -204,20 +206,6 @@
 
 **典型修复**：把文件重命名为 `SKILL.md`。在默认不区分大小写的系统上直接改大小写可能"改了等于没改"，可先改成临时名再改回：终端执行 `mv skill.md tmp && mv tmp SKILL.md`（用 git 管理时也可 `git mv skill.md SKILL.md`）。文件不存在则按 wxa-skills-generate `references/CODE_TEMPLATES.md` 第五节模板新建。
 
-### V015 原子组件必须配置关联小程序页面
-
-- **阶段**：`component`，**级别**：`error`
-
-对 `mcp.json.apis[]` 中每个声明了 `_meta.ui.componentPath` 的接口，要求 `mcp.json` 顶层 `components[]` 存在一条 `path` 与该 `componentPath` **字符串完全相等**（含末尾 `/index`，严格相等、不做归一化）的条目，且其 `relatedPage` 字段满足：
-
-1. **非空**（trim 后非空字符串）；
-2. **必须以 `/` 开头**（绝对路径，强制约束）；
-3. 去掉前导 `/` 后，**存在于项目 `app.json` 的可路由页面集合**中。该集合 = 主包 `pages[]` ∪ 所有分包 `subPackages[]`（兼容历史命名 `subpackages[]`）的 `root + '/' + page` 拼接结果；两侧均做去前导/末尾 `/` 归一化后比对。
-
-读不到项目 `app.json` 时跳过第 3 条 pages 字面值比对，第 1、2 条仍然生效。
-
-**典型修复**：在 `mcp.json` 顶层 `components[]` 追加 `{ "path": "<与接口 _meta.ui.componentPath 完全一致的字符串>", "relatedPage": "/<主包 pages[] 中的页面 或 分包 root+page 拼接>" }`（注意 `relatedPage` 前导 `/` 必填）；业务上没有对应页面时**兜底用 `/<app.json.pages[0]>` 首页（同样带 `/`）**。详见 wxa-skills-generate `SKILL.md` 的 C.3 节。
-
 ### V016 app.json 的 agent.skills[].description 必须存在且非空
 
 - **阶段**：`registration`，**级别**：`error`
@@ -237,6 +225,27 @@
 
 ---
 
+### V017 handoff 接力页 pagePath 校验
+
+- **阶段**：`registration`，**级别**：`error`（另含 `warning` 子项）
+
+进小程序场景下，原子接口通过 `_meta.ui.pagePath` 声明"用户点卡片后进入的接力业务页"，并在返回值顶层的 `handoff` 中传递 query / payload。本规则对**声明了 `_meta.ui.pagePath` 的接口**校验（未声明则跳过，`pagePath` 按需）：
+
+1. `pagePath` **非空**（trim 后非空字符串）；
+2. **必须以 `/` 开头**（绝对路径）；
+3. **不应带 query**（`?`）——query 由返回值 `handoff.query` 传递，`pagePath` 只写页面路径；
+4. 去掉前导 `/` 后，**存在于项目 `app.json` 的可路由页面集合**中（主包 `pages[]` ∪ 所有分包 `subPackages[]` / `subpackages[]` 的 `root + '/' + page`）。读不到 `app.json` 时跳过第 4 条。
+
+**warning 子项**：声明了 `pagePath` 但该接口实现文件（`apis/` / `tools/services/` / `tools/` 下同名 `.js`）中**未出现 `handoff`** 时，提示补返回值——用户点卡片进接力页会缺少 query / payload 传递。
+
+**典型修复**：
+- `pagePath` 带 query（如 `/pages/drug/detail?id=1`）→ 改为 `"/pages/drug/detail"`，把 `id=1` 放到返回值 `handoff.query`
+- `pagePath` 不以 `/` 开头 → 补前导 `/`
+- 页面不存在 → 改为 `app.json` 中真实页面
+- 实现未返回 `handoff` → 在返回值顶层增加 `handoff: { query, payload? }`（详见 wxa-skills-generate `SKILL.md` C.3.3）
+
+---
+
 ## 规则与错误类型映射
 
 | 规则 id | 错误类型（SKILL.md 中的分类） | 典型修复路径 |
@@ -251,8 +260,8 @@
 | V011 | T3 组件绑定不一致 | 对齐 `setData` 与 WXML `{{}}` |
 | V012 | T6 注册缺失（组件维度） | 若已声明 `componentPath`，补齐组件四件套 / 修正路径格式 |
 | V014 | T1 命名/结构 | `SKILL.md` 文件名严格大写 |
-| V015 | T-relatedPage 关联页面缺失 / path 不一致 / 缺前导 `/` | 在 `mcp.json.components[]` 补 `{ path, relatedPage }`，`path` 与接口 `_meta.ui.componentPath` **字符串完全相等**（含末尾 `/index`），`relatedPage` **必须以 `/` 开头**，无业务对应页面时填首页（`/<pages[0]>`） |
 | V016 | T-skill-description skill 描述缺失 | 在 `app.json` 的 `agent.skills[]` 中为该条目补 `description` 字段 |
+| V017 | T-handoff 接力页配置错误 | 修正 `_meta.ui.pagePath`（以 `/` 开头、不含 query、页面真实存在）；补返回值 `handoff` |
 
 ---
 

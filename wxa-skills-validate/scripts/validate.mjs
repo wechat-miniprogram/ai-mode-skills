@@ -75,8 +75,8 @@ const BUILTIN_RULES = {
     { id: "V013", name: "mcp.json 体积限制", stage: "registration", level: "error",
       maxChars: 24000 },
     { id: "V014", name: "SKILL.md 必须存在且文件名严格大写", stage: "registration", level: "error" },
-    { id: "V015", name: "原子组件必须配置关联小程序页面", stage: "component", level: "error" },
     { id: "V016", name: "app.json 的 agent.skills[].description 必须存在且非空", stage: "registration", level: "error" },
+    { id: "V017", name: "handoff 接力页 pagePath 校验", stage: "registration", level: "error" },
   ],
 };
 
@@ -306,7 +306,7 @@ async function listApiFiles(skillDir) {
     try {
       for (const e of await readdir(join(skillDir, sub), { withFileTypes: true })) {
         if (!e.isFile() || !e.name.endsWith(".js")) continue;
-        if (["util.js", "index.js"].includes(e.name) || /Store\.js$/.test(e.name)) continue;
+        if (["util.js", "index.js"].includes(e.name) || e.name.endsWith("Store.js")) continue;
         out.push({ path: join(skillDir, sub, e.name), subdir: sub, name: e.name.slice(0, -3) });
       }
     } catch {}
@@ -431,8 +431,8 @@ const CROSS_CHECKERS = {
   V012: checkV012_ComponentFiles,
   V013: checkV013_McpSize,
   V014: checkV014_SkillMdCase,
-  V015: checkV015_ComponentRelatedPage,
   V016: checkV016_SkillDescription,
+  V017: checkV017_HandoffPagePath,
 };
 
 async function checkCrossFileRule(rule, skillsPath, ctx = {}) {
@@ -683,7 +683,7 @@ async function checkV013_McpSize(rule, skillsPath) {
     catch { out.push(fail(rule, `${rule.name}: ${mcpRel} JSON 解析失败`, { file: mcpRel, fix: "修复 JSON 语法" })); continue; }
 
     const apis = Array.isArray(parsed?.apis) ? parsed.apis : [];
-    const stripped = { ...parsed, apis: apis.map(({ outputSchema, ...rest }) => rest) };
+    const stripped = { ...parsed, apis: apis.map(({ outputSchema: _outputSchema, ...rest }) => rest) };
     const body = JSON.stringify(stripped);
     const len = body.length;
 
@@ -721,68 +721,6 @@ async function checkV014_SkillMdCase(rule, skillsPath) {
   return out;
 }
 
-async function checkV015_ComponentRelatedPage(rule, skillsPath, ctx = {}) {
-  const out = [];
-  let appPages = null;
-  if (ctx.projectRoot) {
-    try {
-      const appJson = JSON.parse(await readFile(join(ctx.projectRoot, "app.json"), "utf-8"));
-      appPages = collectAppPages(appJson);
-    } catch {}
-  }
-
-  for (const skillDir of await findSkillDirs(skillsPath)) {
-    const rel = relative(skillsPath, skillDir);
-    const mcpRel = `${rel}/mcp.json`;
-    let mcp;
-    try { mcp = JSON.parse(await readFile(join(skillDir, "mcp.json"), "utf-8")); } catch { continue; }
-    const components = Array.isArray(mcp.components) ? mcp.components : [];
-    const compByPath = new Map(
-      components.filter(c => c && typeof c.path === "string").map(c => [c.path, c])
-    );
-
-    for (const item of parseMcpApis(mcp)) {
-      const name = typeof item?.name === "string" ? item.name : "(unknown)";
-      const cp = item?._meta?.ui?.componentPath;
-      if (!cp) continue;
-      const fallback = appPages?.[0] ? `/${appPages[0]}` : "</app.json.pages[0]>";
-
-      const comp = compByPath.get(cp);
-      if (!comp) {
-        out.push(fail(rule, `接口 '${name}' 的组件 '${cp}' 未在 mcp.json.components[] 中以严格相等的 path 声明`, {
-          file: mcpRel,
-          fix: `在 mcp.json 顶层 components[] 中追加 { "path": "${cp}", "relatedPage": "${fallback}" }（path 必须与接口 _meta.ui.componentPath 字符串完全一致；relatedPage 必须以 '/' 开头，主包/分包页面均可）`,
-        }));
-        continue;
-      }
-      const rp = typeof comp.relatedPage === "string" ? comp.relatedPage.trim() : "";
-      if (!rp) {
-        out.push(fail(rule, `组件 '${cp}' 在 mcp.json.components[] 中 relatedPage 缺失或为空`, {
-          file: mcpRel,
-          fix: `为该 components[] 条目补全 relatedPage 字段（必须以 '/' 开头，取自 app.json 主包 pages[] 或分包 root+pages 拼接结果，无对应业务页面时填首页 '${fallback}'）`,
-        }));
-        continue;
-      }
-      if (!rp.startsWith("/")) {
-        out.push(fail(rule, `组件 '${cp}' relatedPage='${rp}' 必须以 '/' 开头`, {
-          file: mcpRel,
-          fix: `将 relatedPage 改为 '/${rp.replace(/^\/+/, "")}'（强制以 '/' 开头）`,
-        }));
-        continue;
-      }
-      if (appPages && !appPages.includes(rp.replace(/^\/+/, ""))) {
-        out.push(fail(rule, `组件 '${cp}' relatedPage='${rp}' 不在项目 app.json 的主包 pages[] 与分包 root+pages 拼接结果中`, {
-          file: mcpRel,
-          fix: `改为 app.json 主包 pages[] 或分包（subPackages/subpackages）root+pages 拼接结果中真实存在的页面（带前导 '/'，无业务对应时填首页 '${fallback}'）`,
-        }));
-        continue;
-      }
-      out.push(pass(rule, `${rule.name}: ${rel} 接口 '${name}' relatedPage='${rp}'`));
-    }
-  }
-  return out;
-}
-
 async function checkV016_SkillDescription(rule, _skillsPath, ctx = {}) {
   const out = [];
   if (!ctx.projectRoot) return out;
@@ -801,6 +739,77 @@ async function checkV016_SkillDescription(rule, _skillsPath, ctx = {}) {
       }));
     } else {
       out.push(pass(rule, `${rule.name}: skill '${name}' description 已配置`));
+    }
+  }
+  return out;
+}
+
+async function checkV017_HandoffPagePath(rule, skillsPath, ctx = {}) {
+  const out = [];
+  let appPages = null;
+  if (ctx.projectRoot) {
+    try {
+      const appJson = JSON.parse(await readFile(join(ctx.projectRoot, "app.json"), "utf-8"));
+      appPages = collectAppPages(appJson);
+    } catch {}
+  }
+
+  for (const skillDir of await findSkillDirs(skillsPath)) {
+    const rel = relative(skillsPath, skillDir);
+    const mcpRel = `${rel}/mcp.json`;
+    let mcp;
+    try { mcp = JSON.parse(await readFile(join(skillDir, "mcp.json"), "utf-8")); } catch { continue; }
+
+    for (const item of parseMcpApis(mcp)) {
+      const name = typeof item?.name === "string" ? item.name : "(unknown)";
+      const pp = item?._meta?.ui?.pagePath;
+      if (pp === undefined || pp === null) continue; // pagePath 按需，未声明则跳过
+      const ppStr = typeof pp === "string" ? pp.trim() : "";
+      if (!ppStr) {
+        out.push(fail(rule, `接口 '${name}' _meta.ui.pagePath 为空`, {
+          file: mcpRel,
+          fix: `删除该字段，或填真实接力页 path（必须以 '/' 开头、不含 query，取自 app.json 主包 pages[] 或分包 root+pages）`,
+        }));
+        continue;
+      }
+      if (!ppStr.startsWith("/")) {
+        out.push(fail(rule, `接口 '${name}' pagePath='${ppStr}' 必须以 '/' 开头（绝对路径）`, {
+          file: mcpRel,
+          fix: `将 pagePath 改为 '/${ppStr.replace(/^\/+/, "")}'`,
+        }));
+        continue;
+      }
+      if (ppStr.includes("?")) {
+        out.push(fail(rule, `接口 '${name}' pagePath='${ppStr}' 不应带 query`, {
+          file: mcpRel,
+          fix: `去掉 '?' 及其后内容；query 由原子接口返回值的 handoff.query 传递（详见 wxa-skills-generate SKILL.md C.3.3）`,
+        }));
+        continue;
+      }
+      if (appPages && !appPages.includes(ppStr.replace(/^\/+/, ""))) {
+        out.push(fail(rule, `接口 '${name}' pagePath='${ppStr}' 不在项目 app.json 的主包 pages[] 与分包 root+pages 拼接结果中`, {
+          file: mcpRel,
+          fix: `改为 app.json 中真实存在的页面（带前导 '/'、不含 query）`,
+        }));
+        continue;
+      }
+      // 声明了 pagePath 表示"停下等用户确认后进接力页"，实现应返回 handoff 承接 query/payload
+      let handoffWarned = false;
+      const found = await resolveApiFile(skillDir, name);
+      if (found) {
+        try {
+          const body = await readFile(found.path, "utf-8");
+          if (!/\bhandoff\b/.test(body)) {
+            handoffWarned = true;
+            out.push(fail(rule, `接口 '${name}' 声明了 pagePath 但实现未返回 handoff（用户点卡片进接力页时缺少 query/payload 传递）`, {
+              level: "warning",
+              file: relative(skillsPath, found.path),
+              fix: `在返回值顶层（与 content/structuredContent 同级）增加 handoff: { query: '...', payload? }（详见 wxa-skills-generate SKILL.md C.3.3）`,
+            }));
+          }
+        } catch {}
+      }
+      if (!handoffWarned) out.push(pass(rule, `${rule.name}: ${rel} 接口 '${name}' pagePath='${ppStr}'`));
     }
   }
   return out;

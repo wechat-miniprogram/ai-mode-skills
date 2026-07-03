@@ -68,7 +68,7 @@ async function main() {
     consoleMessages: [],
   };
   payload._meta = {
-    ...(payload._meta || {}),
+    ...payload._meta,
     project: opts.project,
     cliStderr: raw.stderr || undefined,
     cliExitCode: raw.code,

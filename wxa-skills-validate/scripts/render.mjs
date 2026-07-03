@@ -133,7 +133,7 @@ async function main() {
 
   const { passed, checks } = verifyRender(payload);
   payload._meta = {
-    ...(payload._meta || {}),
+    ...payload._meta,
     name,
     snapshotPng: raw.snapshotPngPath,
     verify: { passed, checks },

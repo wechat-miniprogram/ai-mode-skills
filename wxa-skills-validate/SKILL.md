@@ -3,7 +3,7 @@ name: wxa-skills-validate
 description: 校验和修复小程序 AI SKILLs 产物。在以下场景触发：对 skills/ 目录做静态校验、跑通原子接口、验证原子组件渲染、修复校验报错、输出交付文档。依托微信开发者工具进行真机验证。
 metadata:
   author: Tencent
-  version: '0.1.18'
+  version: '0.2.0'
 ---
 
 # wxa-skills-validate
@@ -41,7 +41,7 @@ metadata:
 | 文件 | 用途 | 加载时机 |
 |------|------|---------|
 | `references/CLI_AGENT_REFERENCE.md` | CLI `agent` 命令参考 | 步骤 4 执行前 |
-| `references/VALIDATE_RULES.md` | validate.mjs 内置的 V001~V012 规则详解 | 出现校验报错需定位 id 时 |
+| `references/VALIDATE_RULES.md` | validate.mjs 内置的 V001~V017 规则详解 | 出现校验报错需定位 id 时 |
 | `references/DELIVERY_TEMPLATE.md` | `DELIVERY.md` 交付模板 | 最终交付时 |
 
 ---
@@ -59,7 +59,7 @@ metadata:
 ```
 阶段 1 — 静态校验 + 编译校验
 - [ ] 运行 `node validate.mjs <project-path>`（单参数，脚本自动发现 skill 分包并决定是否跑 preview）
-- [ ] summary.errors === 0（含 V001~V013），否则按 T1~T9 分类修复后重跑
+- [ ] summary.errors === 0（含 V001~V017），否则按 T1~T9 分类修复后重跑
 - [ ] summary.buildStatus === "pass"（静态 0 error 时 preview 会自动运行；
       若为 "skipped" 说明静态未过，先按上一项修复）
 - [ ] 阅读 Build 行：若 stage=compile + FAIL，说明有语法/编译错误，必须修复
@@ -144,7 +144,7 @@ CLI 缺失不影响静态规则的输出，只会让 build 阶段被 skip。
 
 **执行顺序**（脚本内部闭环）：
 1. 同步 `project.config.json` 的 `packOptions.ignore` + `watchOptions.ignore`（追加 `cli-agent-run/`）
-2. 发现 skill 分包 → 只在分包内跑 V001~V013
+2. 发现 skill 分包 → 只在分包内跑 V001~V017
 3. 有 error → build=`skipped`（节省 preview 成本）；0 error → 调 `cli preview`
 4. 到达 `upload` 阶段视为编译通过；即便上传失败（服务端校验、网络等），也不标记 build 失败
 
@@ -165,9 +165,10 @@ CLI 缺失不影响静态规则的输出，只会让 build 阶段被 skip。
 | **T-wx-jsapi 非白名单** | 运行时 `wx.<xxx> is not a function` / `wx.<ns>` 为 undefined | `apis/{name}.js` / `components/{x}/index.js` | 对照 wxa-skills-generate `SKILL.md` C.1/C.2 白名单（**完整清单**见 `wxa-skills-generate/references/JSAPI_WHITELIST.md`），按 C.4 替换或改网络请求；无替代标 T9（详见阶段 4 C.1） |
 | **T-build 编译失败** | Build 行显示 FAIL 且 stage=compile | 项目集成 / `.js` / `.wxml` / `.wxss` | 先对照 wxa-skills-generate `SKILL.md` 阶段 6 "配置集成" 核对 `app.json` / `project.config.json`，集成无误后再按日志修源码 |
 | **T-skill-description** | `app.json` 的 `agent.skills[].description` 缺失或为空（V016） | `app.json` | 在该条目中补充非空的 `description` 字段 |
+| **T-handoff** | 接力页 `_meta.ui.pagePath` 格式错/页面不存在/带 query，或声明了 pagePath 却未返回 `handoff`（V017） | `mcp.json` + `apis/{name}.js` | pagePath 以 `/` 开头、不含 query、页面真实存在；返回值顶层补 `handoff: { query, payload? }`（详见 wxa-skills-generate `SKILL.md` C.3.3） |
 | **T9 能力无法实现** | 所有候选都违反硬约束 | — | ⛔ 终止，告知用户 |
 
-V001~V016 规则详情见 `references/VALIDATE_RULES.md`。
+V001~V017 规则详情见 `references/VALIDATE_RULES.md`。
 
 **判别口诀**：文件内能改完 → T1~T6；需改 storage 清单或接口划分 → T7/T8；连修复方案都违规 → T9。
 

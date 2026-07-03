@@ -9,6 +9,18 @@
 
 ## wxa-skills-generate
 
+### [0.2.0] - 2026-07-02
+
+#### ♻️ 变更
+
+- **生成规则调整：原子组件默认不生成**：默认只生成原子接口（文本 + `structuredContent` + handoff）；**仅当用户明确要求生成原子组件（GUI 卡片）时**才产出组件目录与 `_meta.ui.componentPath` / `components[]`。同步更新术语约定、职责边界、C.3、阶段 4.2/4.3/4.4、阶段 5.0 前置（整节改为按需）、5.2 与自检清单。
+- **`relatedPage` / `setRelatedPage` 移除，进小程序统一走 handoff**：删除 `components[].relatedPage` 配置与 `viewCtx.setRelatedPage()`（从 `JSAPI_WHITELIST.md §2` 白名单、`CODE_TEMPLATES.md` 运行时示例、`SKILL.md` C.3 全部移除）；进小程序改用 `_meta.ui.pagePath` + 返回值 `handoff`（C.3.3 升级为"进小程序的主要方式"）。`CODE_TEMPLATES.md` 的 mcp.json 模板默认改为 `pagePath`，`README.md` 同步。
+- **原子接口 wx API 白名单收紧**：`references/JSAPI_WHITELIST.md §1`（接口侧）移除支付类（`requestPayment` / `requestVirtualPayment` / `verifyPaymentPassword` / `requestJointPayment` / `openPublicServicePayment` / `openBusinessView`）、系统选择器与采集（`chooseLocation` / `chooseAddress` / `chooseInvoice` / `chooseInvoiceTitle` / `chooseMedia` / `chooseMessageFile` / `saveImageToPhotosAlbum` / `scanCode`）、主动打开原生页/面板（`openLocation` / `makePhoneCall` / `openDocument` / `shareAppMessage` / `openSetting` / `openPrivacyContract`）；新增 §2.1「动态原子组件专属」表（须声明 `scope.dynamic`，tap 回调触发）。同步更新 `SKILL.md` C.1 / C.2 白名单摘要表。普通（静态）原子组件能力不变。
+
+#### ✨ 新增
+
+- **handoff 接力页生成**：新增 `SKILL.md` C.3.3 节，支持生成 handoff 配置——`mcp.json` 的 `apis[]._meta.ui.pagePath`（接力页 path，不含 query）、原子接口返回值顶层 `handoff`（**兼容对象 `{ query, payload?, card? }`（立即模式）与函数 `({ result }) => ({...})`（延迟模式，`result` 为模型修改后的完整 result）**；`query` 为页面 query 键值对对象、`card` 为卡片展示信息）、主包 `app.js` 注册 `wx.onAgentHandoff`、接力业务页 `onLoad(query)` 消费。配套 `references/CODE_TEMPLATES.md` 新增"handoff 接力页"完整代码模板，`SKILL.md` 4.2（接口字段）/ 5.2（返回值格式）/ 阶段 6（配置集成）同步补充。
+
 ### [0.1.20] - 2026-06-15
 
 #### ✨ 新增
@@ -66,6 +78,16 @@
 ---
 
 ## wxa-skills-validate
+
+### [0.2.0] - 2026-07-02
+
+#### 🗑️ 移除
+
+- **移除 V015（原"原子组件必须配置关联小程序页面"）**：`relatedPage` / `setRelatedPage` 已废弃并从规范中移除，进小程序统一走 handoff（V017），故删除 V015 规则（`validate.mjs` 规则注册 / 分发 / 校验函数 + `references/VALIDATE_RULES.md` 章节 / TOC / 映射表）。校验时不再检查 `relatedPage`。
+
+#### ✨ 新增
+
+- **新增 V017 校验 - handoff 接力页 pagePath**：对声明了 `_meta.ui.pagePath` 的接口校验 pagePath 非空、以 `/` 开头、不含 query、且页面存在于 `app.json` 主包 `pages[]` ∪ 分包 `root+pages`（读不到 app.json 时跳过页面存在性）；另含 warning 子项——声明了 pagePath 但实现文件未返回 `handoff` 时提示补齐。同步更新 `references/VALIDATE_RULES.md` 与 `SKILL.md`（规则范围、错误类型表新增 T-handoff）。
 
 ### [0.1.17] - 2026-06-04
 

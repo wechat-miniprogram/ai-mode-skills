@@ -114,11 +114,6 @@ export function parseArgs(argv) {
  * 通过 evaluate 在小程序运行时内覆写 wx.request，
  * 在 success/fail 回调中记录请求参数 + 响应数据到全局变量。
  * 原始请求仍然正常发出，业务行为不受影响。
- *
- * 注意：覆写仅存在于当前页面的 JS 上下文中，
- * 当页面通过 reLaunch/navigateTo 切换后，新页面会获得全新的上下文，
- * 因此需要在每次 probeOne 开头重新注入。
- * 探测完成后无需手动恢复——下一次 reLaunch 会自动重置。
  */
 async function injectRequestCapture(miniProgram, collectorKey) {
   await miniProgram.evaluate((key) => {
@@ -171,7 +166,7 @@ async function readCapturedRequests(miniProgram, collectorKey) {
 
 // ─── 交互步骤执行 ────────────────────────────────────────
 
-async function executeStep(page, step) {
+async function executeStep(miniProgram, page, step) {
   switch (step.kind) {
     case "tap":
     case "longpress": {
@@ -188,6 +183,15 @@ async function executeStep(page, step) {
     }
     case "callMethod":
       await page.callMethod(step.method, ...(step.args || []));
+      break;
+    case "request":
+      // 非 UI 直发：在运行时直接调用 wx.request（url/method/data/header 由静态分析提供）
+      // 适用于「不靠点击、需直接触发」的请求，或串联链路中的中间请求
+      await miniProgram.evaluate((opts) => { wx.request(opts); }, step.options || {});
+      break;
+    case "evaluate":
+      // 非 UI 通用：在运行时执行任意函数体字符串（如手动调用页面/全局取数函数）
+      await miniProgram.evaluate(new Function(step.code));
       break;
     case "wait":
       await delay(step.ms || 500);
@@ -213,6 +217,7 @@ async function probeOneApi({ miniProgram, planItem, interactionTimeoutMs }) {
     status: "pending",
     request: null,
     response: null,
+    requests: null, // 多请求链路（matchUrlIncludes 为数组时）的有序结果
     duration_ms: 0,
     error: null,
   };
@@ -230,7 +235,7 @@ async function probeOneApi({ miniProgram, planItem, interactionTimeoutMs }) {
       for (const preStep of planItem.preSteps) {
         if (preStep.trigger) {
           for (const triggerStep of preStep.trigger) {
-            await executeStep(preStepPage, triggerStep);
+            await executeStep(miniProgram, preStepPage, triggerStep);
             if (triggerStep.delayAfterMs) await delay(triggerStep.delayAfterMs);
           }
         }
@@ -240,43 +245,65 @@ async function probeOneApi({ miniProgram, planItem, interactionTimeoutMs }) {
       await readCapturedRequests(miniProgram, collectorKey);
     }
 
-    // 导航到目标页面 + 执行触发操作
+    // 导航到目标页面（onLoad/onShow 自动发的请求此时已被捕获）+ 执行触发操作
+    // trigger 可为空：纯靠进页面自动发请求；也可用 request/evaluate 非 UI 直发
     const targetPage = await navigateToPage(miniProgram, planItem.target_page);
     await delay(800);
     for (const triggerStep of planItem.trigger || []) {
-      await executeStep(targetPage, triggerStep);
+      await executeStep(miniProgram, targetPage, triggerStep);
       if (triggerStep.delayAfterMs) await delay(triggerStep.delayAfterMs);
     }
 
-    // 轮询等待请求捕获
+    // 匹配关键词：支持单个（string）或多个有序（array，对应「一个能力 = 多请求」）
+    const patterns = Array.isArray(planItem.matchUrlIncludes)
+      ? planItem.matchUrlIncludes
+      : planItem.matchUrlIncludes ? [planItem.matchUrlIncludes] : [];
+    const isMulti = Array.isArray(planItem.matchUrlIncludes);
+
+    // 轮询收集**全部**捕获请求（不再命中一条就停，确保多请求链路抓全）
     const deadline = Date.now() + (planItem.captureWaitMs || interactionTimeoutMs);
-    let capturedRequests = [];
+    const captured = [];
+    const allHit = () => patterns.length > 0 && patterns.every((p) => captured.some((c) => c.request?.url?.includes(p)));
     while (Date.now() < deadline) {
       await delay(500);
-      capturedRequests = await readCapturedRequests(miniProgram, collectorKey);
-      if (capturedRequests.length) break;
+      const batch = await readCapturedRequests(miniProgram, collectorKey);
+      if (batch.length) captured.push(...batch);
+      if (patterns.length ? allHit() : captured.length) break;
     }
 
     // 处理探测结果
-    if (!capturedRequests.length) {
+    if (!captured.length) {
       result.status = "no_request";
       result.error = "未捕获到 wx.request 调用";
+    } else if (!patterns.length) {
+      // 无匹配关键词：取第一条，其余进 extras
+      result.status = "ok";
+      result.request = captured[0].request;
+      result.response = captured[0].response;
+      if (captured.length > 1) result.extras = captured.slice(1).map((c) => ({ request: c.request, response: c.response }));
     } else {
-      const matchedRequest = planItem.matchUrlIncludes
-        ? capturedRequests.find((item) => item.request?.url?.includes(planItem.matchUrlIncludes))
-        : capturedRequests[0];
-      if (!matchedRequest) {
+      // 按 pattern 顺序逐个匹配
+      const matched = patterns.map((p) => {
+        const hit = captured.find((c) => c.request?.url?.includes(p));
+        return { matchUrlIncludes: p, request: hit?.request || null, response: hit?.response || null, matched: !!hit };
+      });
+      const hitCount = matched.filter((m) => m.matched).length;
+      if (hitCount === 0) {
         result.status = "url_unmatched";
-        result.error = `${capturedRequests.length} 条请求均不匹配 '${planItem.matchUrlIncludes}'`;
-        result.request = capturedRequests.map((item) => item.request);
+        result.error = `${captured.length} 条请求均不匹配 ${JSON.stringify(patterns)}`;
+        result.request = captured.map((c) => c.request);
       } else {
-        result.status = "ok";
-        result.request = matchedRequest.request;
-        result.response = matchedRequest.response;
-        const otherRequests = capturedRequests.filter((item) => item !== matchedRequest);
-        if (otherRequests.length) {
-          result.extras = otherRequests.map((item) => ({ request: item.request, response: item.response }));
+        result.status = hitCount === patterns.length ? "ok" : "partial";
+        if (isMulti) {
+          result.requests = matched; // 多请求：返回完整有序列表
+        } else {
+          result.request = matched[0].request;
+          result.response = matched[0].response;
         }
+        if (hitCount < patterns.length) result.error = `部分命中：${hitCount}/${patterns.length}`;
+        const usedUrls = new Set(matched.filter((m) => m.matched).map((m) => m.request?.url));
+        const others = captured.filter((c) => !usedUrls.has(c.request?.url));
+        if (others.length) result.extras = others.map((c) => ({ request: c.request, response: c.response }));
       }
     }
   } catch (error) {
