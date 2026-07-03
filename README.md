@@ -68,27 +68,6 @@ skill 会执行：
 
 详见 [`wxa-skills-validate/SKILL.md`](./wxa-skills-validate/SKILL.md)。
 
-### 3. 评测（CLI / Web）
+### 3. 评测
 
-```bash
-cd wxa-skills-eval
-pnpm install
-pnpm dev:web        # 启动 Web UI 评测
-# 或
-pnpm dev            # 启动 CLI 评测
-```
-
-详见 [`wxa-skills-eval/skill/SKILL.md`](./wxa-skills-eval/skill/SKILL.md) 与 [`wxa-skills-eval/ARCHITECTURE.md`](./wxa-skills-eval/ARCHITECTURE.md)。
-
-## 核心概念
-
-| 术语 | 说明 |
-|---|---|
-| **原子接口** | 对外暴露给小程序 AI 的可调用能力，路径 `skills/{skill}/apis/{name}.js`（validator 兼容 `tools/services/` / `tools/`） |
-| **原子组件** | 用于渲染原子接口返回数据的 UI，路径 `skills/{skill}/components/{name}/index.{js,json,wxml,wxss}`（与 `mcp.json._meta.ui.componentPath` 严格相等） |
-| **mcp.json** | 单一来源维护接口契约（`name` / `description` / `inputSchema` / `outputSchema` / `_meta.ui.componentPath`） + 组件配置（`relatedPage` 必须以 `/` 开头） |
-| **wx API 白名单** | 接口侧 vs 组件侧可用 wx API 范围；完整清单见 [`wxa-skills-generate/references/JSAPI_WHITELIST.md`](./wxa-skills-generate/references/JSAPI_WHITELIST.md) |
-
-## 版本历史
-
-所有版本变更详见 [**CHANGELOG.md**](./CHANGELOG.md)（generate / validate）与 [**wxa-skills-eval/CHANGELOG.md**](./wxa-skills-eval/CHANGELOG.md)（eval）。
+为提升开发者使用体验和评测质量，小程序AI开发模式「评测工具」正在升级中，当前「评测SKILLs」暂不开放使用。后续开发者可前往[微信开放文档](https://developers.weixin.qq.com/miniprogram/dev/ai/evaluation-guide.html)或微信开发者工具使用新版「评测工具」。
