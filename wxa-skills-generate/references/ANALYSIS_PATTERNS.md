@@ -129,7 +129,7 @@ wx\.cloud\.callContainer\s*\(\s*\{
 
 ## 三、JSAPI 使用搜索模式
 
-> ⚠️ 以下是技能分包**白名单内**支持的 JSAPI 搜索模式。**完整白名单见 `references/JSAPI_WHITELIST.md`**（`SKILL.md` 的"硬性约束 C"节只列高频项）。源项目中可能用到白名单之外的接口（如 `wx.scanCode`、`wx.chooseAddress`、`wx.navigateTo` 等），这些不可迁移，提取时应标记并按"硬性约束 C.4 / C.6"判定规则处理。
+> ⚠️ 以下是技能分包**白名单内**支持的 JSAPI 搜索模式。**完整白名单见 `references/JSAPI_WHITELIST.md`**（`SKILL.md` D 节只列高频项）。源项目中可能用到白名单之外的接口（如 `wx.scanCode`、`wx.chooseAddress`、`wx.navigateTo` 等），这些不可迁移，提取时应标记并按 D.7 / D.9 判定规则处理。
 
 ### 定位相关
 

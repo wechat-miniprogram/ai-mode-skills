@@ -14,8 +14,7 @@
   - [1.1 必选：返回值工厂](#11-必选返回值工厂每个-skill-都需要)
   - [1.2 按需：云开发初始化](#12-按需云开发初始化使用-wxcloud-时才需要)
   - [1.3 按需：主包 storage 初始化迁移](#13-按需主包-storage-初始化迁移仅当主包-appjs-有写-storage-默认值时才需要)
-  - [1.4 按需：HTTP 请求](#14-按需http-请求使用-wxrequest-时才需要)
-  - [1.4.1 按需：登录鉴权](#141-按需登录鉴权接口需要登录态时才需要)
+  - [1.4 按需：HTTP 请求（含登录鉴权）](#14-按需http-请求使用-wxrequest-时才需要)
   - [1.5 按需：JSAPI 封装](#15-按需jsapi-封装仅白名单内)
   - [1.6 按需：接口间数据传递](#16-按需接口间数据传递)
 - [二、原子接口模板](#二原子接口模板)
@@ -103,14 +102,14 @@ function request(options) {
 }
 ```
 
-### 1.4.1 按需：登录鉴权（接口需要登录态时才需要）
+#### 登录鉴权（按需，接口需要登录态时）
 
 > **何时需要**：若主包中该业务接口的 `wx.request` 携带了 token / session / cookie 等鉴权信息，则分包必须实现 `ensureLogin()`，并在每个需要鉴权的原子接口入口处 `await ensureLogin()`。
 
 **实现规则**（完全以主包登录逻辑为准，不要套固定写法）：
 
 - 分包**不依赖 storage 中的登录态**，每次冷启动都重新走一遍登录流程
-- 登录流程与主包完全相同（`wx.login` 换 token），从主包源码中提取接口路径、参数、返回字段后在分包内还原
+- 登录流程与主包完全相同（`wx.login` 换 token）：**打开主包中的真实登录函数本体，逐字复刻**接口完整 URL（含 host 取自哪个 baseUrl 变量）、每个请求字段名、method、响应取值路径——禁止凭函数名/字符串/通用模式推断
 - 登录成功后将 token 保存到**模块级变量**（如 `let _token = ''`），供同一进程内的后续请求复用；不写 storage
 - 需防并发重复登录（多个接口同时调用 `ensureLogin` 时只发起一次登录请求）
 - 关键节点打 `[ai-mode]` 前缀日志
@@ -119,7 +118,7 @@ function request(options) {
 
 ### 1.5 按需：JSAPI 封装（仅白名单内）
 
-按实际接口自行封装，参考主包实现。常见示例：`wx.getLocation` / `wx.getFuzzyLocation` / `wx.openLocation` / `wx.chooseLocation` / `wx.requestPayment` / `wx.requestVirtualPayment` / `wx.openBusinessView`（仅 `wxpayScoreUse`/`wxpayScoreEnable`）/ `wx.login` / `wx.checkSession` / `wx.authorize` / `wx.shareAppMessage` / `wx.getPhoneNumber` / `wx.getRealtimePhoneNumber` / `wx.chooseMedia` / `wx.chooseMessageFile` / `wx.startFacialRecognitionVerify` / `wx.requestSubscribeMessage` / `wx.cloud.database`。**完整白名单见 `references/JSAPI_WHITELIST.md`**（`SKILL.md` 的"硬性约束 C"节只列高频项）。不要模板化复制——形式由主包实现决定。
+按实际接口自行封装，参考主包实现。常见示例：`wx.getLocation` / `wx.getFuzzyLocation` / `wx.openLocation` / `wx.chooseLocation` / `wx.requestPayment` / `wx.requestVirtualPayment` / `wx.openBusinessView`（仅 `wxpayScoreUse`/`wxpayScoreEnable`）/ `wx.login` / `wx.checkSession` / `wx.authorize` / `wx.shareAppMessage` / `wx.getPhoneNumber` / `wx.getRealtimePhoneNumber` / `wx.chooseMedia` / `wx.chooseMessageFile` / `wx.startFacialRecognitionVerify` / `wx.requestSubscribeMessage` / `wx.cloud.database`。**完整白名单见 `references/JSAPI_WHITELIST.md`**（`SKILL.md` D 节只列高频项）。不要模板化复制——形式由主包实现决定。
 
 ### 1.6 按需：接口间数据传递
 
@@ -184,11 +183,11 @@ module.exports = {apiName}
 
 // 按 mcp.json 中 apis[].name 一一注册，三者必须完全一致：
 // require 导入名 = registerAPI 第一参数 = mcp.json name
-const {apiName1} = require('./apis/{apiName1}')
-const {apiName2} = require('./apis/{apiName2}')
+const {apiName1} = require('./apis/apiName1')
+const {apiName2} = require('./apis/apiName2')
 
-wx.modelContext.registerAPI('{apiName1}', {apiName1})
-wx.modelContext.registerAPI('{apiName2}', {apiName2})
+wx.modelContext.registerAPI('apiName1', apiName1)
+wx.modelContext.registerAPI('apiName2', apiName2)
 ```
 
 ### 3.2 中间件模式（推荐用于需要统一登录态 / 上报 / 错误监听的场景）
@@ -215,9 +214,9 @@ skill.use(async (ctx, next) => { // ← 中间件 2：上报
   }
 })
 
-// 注册原子接口（等同于 wx.modelContext.registerAPI）
-skill.registerAPI('{apiName1}', {apiName1})
-skill.registerAPI('{apiName2}', {apiName2})
+// 注册原子接口（等同于 wx.modelContext.registerAPI；第二参数必须是 handler 函数）
+skill.registerAPI('apiName1', apiName1)
+skill.registerAPI('apiName2', apiName2)
 ```
 
 **中间件 context 属性**：
@@ -225,7 +224,9 @@ skill.registerAPI('{apiName2}', {apiName2})
 - `ctx.skillPath` — 中间件执行时的 skillPath
 - `ctx.arguments` — 传递给原子接口的参数的**副本**，修改后不影响传递给原子接口的真实参数值
 
-> **使用原则**：当多个原子接口有相同的前置逻辑（如 `ensureLogin()`、统一错误捕获）时，优先用中间件模式替代在每个接口入口处重复调用。中间件与 `ensureLogin()` 二选一，不要混用。
+> **使用原则**：
+> - `use` 注册的是公共逻辑函数，`registerAPI` 注册的是原子接口，两者职责不同：用了 `createSkill` 也必须 `registerAPI` 每个接口，否则接口注册不上。
+> - 中间件与「各接口内 `ensureLogin()`」**二选一，不要混用**。
 
 ---
 
@@ -275,9 +276,9 @@ skill.registerAPI('{apiName2}', {apiName2})
 }
 ```
 
-> `components[]` **仅在用户明确要求生成原子组件时**才有（网络能力 / `expirable` + `expiredText`，见 `SKILL.md` C.3 / C.3.1）；`components[].path` 必须与对应接口的 `_meta.ui.componentPath` 字符串完全相等。`expirable` / `expiredText` 默认不写，仅在源业务确实有"卡片作废"语义时才声明，并在代码里相应调用 `wx.modelContext.expireAllCards()`（接口或组件均可，含自身）或 `wx.modelContext.getViewContext(this).expirePreviousCards()`（**仅原子组件可调用**，不含自身）。进小程序见下方 "handoff 接力页"（`_meta.ui.pagePath` + 返回值 `handoff`）。
+> `components[]` **仅在用户明确要求生成原子组件时**才有（网络能力 / `expirable` + `expiredText`，见 `SKILL.md` D.3 / D.4）；`components[].path` 必须与对应接口的 `_meta.ui.componentPath` 字符串完全相等。`expirable` / `expiredText` 默认不写，仅在源业务确实有"卡片作废"语义时才声明，并在代码里相应调用 `wx.modelContext.expireAllCards()`（接口或组件均可，含自身）或 `wx.modelContext.getViewContext(this).expirePreviousCards()`（**仅原子组件可调用**，不含自身）。进小程序见下方 "handoff 接力页"（`_meta.ui.pagePath` + 返回值 `handoff`）。
 
-### handoff 接力页（进小程序的主要方式，见 `SKILL.md` C.3.3）
+### handoff 接力页（进小程序的主要方式，见 `SKILL.md` D.6）
 
 默认只返回文本 + 小程序卡片，用户点卡片后由平台 handoff 进接力页。给"执行完停下等用户确认"类接口配 `pagePath` 并在返回值加 `handoff`。
 

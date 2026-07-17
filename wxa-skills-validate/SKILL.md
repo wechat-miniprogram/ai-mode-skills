@@ -3,7 +3,7 @@ name: wxa-skills-validate
 description: 校验和修复小程序 AI SKILLs 产物。在以下场景触发：对 skills/ 目录做静态校验、跑通原子接口、验证原子组件渲染、修复校验报错、输出交付文档。依托微信开发者工具进行真机验证。
 metadata:
   author: Tencent
-  version: '0.2.0'
+  version: '0.2.1'
 ---
 
 # wxa-skills-validate
@@ -41,7 +41,7 @@ metadata:
 | 文件 | 用途 | 加载时机 |
 |------|------|---------|
 | `references/CLI_AGENT_REFERENCE.md` | CLI `agent` 命令参考 | 步骤 4 执行前 |
-| `references/VALIDATE_RULES.md` | validate.mjs 内置的 V001~V017 规则详解 | 出现校验报错需定位 id 时 |
+| `references/VALIDATE_RULES.md` | validate.mjs 内置的 V001~V018 规则详解 | 出现校验报错需定位 id 时 |
 | `references/DELIVERY_TEMPLATE.md` | `DELIVERY.md` 交付模板 | 最终交付时 |
 
 ---
@@ -51,6 +51,7 @@ metadata:
 - `<project-path>` 下 `app.json` 发现的每个 skill 分包，其 `mcp.json` 声明的所有原子接口必须跑通 execute（`status === "ok"` 且 `invokeResult.isError !== true`）。
 - 所有带 `_meta.ui.componentPath` 的原子接口，必须跑通 render 且通过 5 项核对（见 `references/CLI_AGENT_REFERENCE.md` 第 2.3 节）。
 - 单接口连续修复 5 轮仍不通过才允许挂起。不得跳过任何一项。
+- 静态/编译通过 ≠ 验收通过：须真机 execute + render 5 项核对；execute 未跑成时不得判通过、不产出 `DELIVERY.md`（见「不可修复类」与「终止条件 4」）。
 
 ---
 
@@ -59,7 +60,7 @@ metadata:
 ```
 阶段 1 — 静态校验 + 编译校验
 - [ ] 运行 `node validate.mjs <project-path>`（单参数，脚本自动发现 skill 分包并决定是否跑 preview）
-- [ ] summary.errors === 0（含 V001~V017），否则按 T1~T9 分类修复后重跑
+- [ ] summary.errors === 0（含 V001~V018），否则按 T1~T9 分类修复后重跑
 - [ ] summary.buildStatus === "pass"（静态 0 error 时 preview 会自动运行；
       若为 "skipped" 说明静态未过，先按上一项修复）
 - [ ] 阅读 Build 行：若 stage=compile + FAIL，说明有语法/编译错误，必须修复
@@ -144,7 +145,7 @@ CLI 缺失不影响静态规则的输出，只会让 build 阶段被 skip。
 
 **执行顺序**（脚本内部闭环）：
 1. 同步 `project.config.json` 的 `packOptions.ignore` + `watchOptions.ignore`（追加 `cli-agent-run/`）
-2. 发现 skill 分包 → 只在分包内跑 V001~V017
+2. 发现 skill 分包 → 只在分包内跑 V001~V018
 3. 有 error → build=`skipped`（节省 preview 成本）；0 error → 调 `cli preview`
 4. 到达 `upload` 阶段视为编译通过；即便上传失败（服务端校验、网络等），也不标记 build 失败
 
@@ -162,13 +163,14 @@ CLI 缺失不影响静态规则的输出，只会让 build 阶段被 skip。
 | **T8 原子接口粒度错** | 接口职责重叠 | `mcp.json` + `index.js` + `apis/*.js` | 拆分/合并 `apis[]` |
 | **T-mcp-size** | `mcp.json` 去除 outputSchema 后超过 24000 字符（V013；后台也会拒绝） | `mcp.json` 的 description/title/inputSchema；或重划 skill 分包 | 压缩描述文字；接口多到难以精简时按职责拆分为多个 skill 分包，**不要把示例/枚举硬塞进 outputSchema** |
 | **T-auth 鉴权缺失** | `401` / `unauthorized` / `token 无效` 等（静态阶段通常由 V007/V008 连带触发） | `utils/util.js` / `apis/{name}.js` | **读主包**还原登录流程 |
-| **T-wx-jsapi 非白名单** | 运行时 `wx.<xxx> is not a function` / `wx.<ns>` 为 undefined | `apis/{name}.js` / `components/{x}/index.js` | 对照 wxa-skills-generate `SKILL.md` C.1/C.2 白名单（**完整清单**见 `wxa-skills-generate/references/JSAPI_WHITELIST.md`），按 C.4 替换或改网络请求；无替代标 T9（详见阶段 4 C.1） |
+| **T-wx-jsapi 非白名单** | 运行时 `wx.<xxx> is not a function` / `wx.<ns>` 为 undefined | `apis/{name}.js` / `components/{x}/index.js` | 对照 wxa-skills-generate `SKILL.md` D.1/D.2 白名单（**完整清单**见 `wxa-skills-generate/references/JSAPI_WHITELIST.md`），按 D.7 替换或改网络请求；无替代标 T9（详见阶段 4 C 类） |
 | **T-build 编译失败** | Build 行显示 FAIL 且 stage=compile | 项目集成 / `.js` / `.wxml` / `.wxss` | 先对照 wxa-skills-generate `SKILL.md` 阶段 6 "配置集成" 核对 `app.json` / `project.config.json`，集成无误后再按日志修源码 |
 | **T-skill-description** | `app.json` 的 `agent.skills[].description` 缺失或为空（V016） | `app.json` | 在该条目中补充非空的 `description` 字段 |
-| **T-handoff** | 接力页 `_meta.ui.pagePath` 格式错/页面不存在/带 query，或声明了 pagePath 却未返回 `handoff`（V017） | `mcp.json` + `apis/{name}.js` | pagePath 以 `/` 开头、不含 query、页面真实存在；返回值顶层补 `handoff: { query, payload? }`（详见 wxa-skills-generate `SKILL.md` C.3.3） |
+| **T-handoff** | 接力页 `_meta.ui.pagePath` 格式错/页面不存在/带 query，或声明了 pagePath 却未返回 `handoff`（V017） | `mcp.json` + `apis/{name}.js` | pagePath 以 `/` 开头、不含 query、页面真实存在；返回值顶层补 `handoff: { query, payload? }`（详见 wxa-skills-generate `SKILL.md` D.6） |
+| **T-handoff-query** | `handoff.query` 的 key 与接力页 `onLoad` 参数名不匹配（V018） | `apis/{name}.js` | 读接力页 `<pagePath>.js` 的 `onLoad(param)` 确认其读取的 `param.xxx` 名称，将 `handoff.query` 的 key 改为页面实际读取的名称 |
 | **T9 能力无法实现** | 所有候选都违反硬约束 | — | ⛔ 终止，告知用户 |
 
-V001~V017 规则详情见 `references/VALIDATE_RULES.md`。
+V001~V018 规则详情见 `references/VALIDATE_RULES.md`。
 
 **判别口诀**：文件内能改完 → T1~T6；需改 storage 清单或接口划分 → T7/T8；连修复方案都违规 → T9。
 
@@ -193,14 +195,15 @@ V001~V017 规则详情见 `references/VALIDATE_RULES.md`。
 
 失败则告知用户 "确认微信开发者工具已安装" 后停止，不要强行绕过。
 
-**（可选）显式启动 auto 服务**避免第一次调用的 cold start：
+**（推荐）先 open 预热再 auto**（约 10s，大项目可延长），减少 websocket 超时：
 
 ```bash
+<DEVTOOLS_APP_PATH>/Contents/MacOS/cli open --project <PROJECT_PATH>
 <DEVTOOLS_APP_PATH>/Contents/MacOS/cli auto \
   --project <PROJECT_PATH> --auto-port <AUTO_PORT> --trust-project
 ```
 
-跳过此步时，`execute.mjs` / `render.mjs` 首次调用会自动拉起 auto。
+跳过此步时脚本会自动拉起 auto；遇超时或 `agent compile mode is disabled` 时按「不可修复类 / 工具不稳定」处理。
 
 ---
 
@@ -209,8 +212,12 @@ V001~V017 规则详情见 `references/VALIDATE_RULES.md`。
 读取 `<project-path>` 下 `app.json` 发现的每个 skill 分包的 `mcp.json`（`validate-report.json` 中的 `skillDirs` 字段给出了具体分包路径）：
 
 1. 汇总 `apis[]` 的 `name` / `description` / `inputSchema` / `outputSchema` / `_meta.ui.componentPath`。
-2. 默认按书写顺序；`description` 或 `inputSchema` 含 "需要先调用 X" 类表述时，将 X 前置。
+2. **按入参依赖排序**（拓扑序）：
+   - 无参接口（`inputSchema.properties` 为空或无 `required`）→ **最先执行**
+   - 有参接口 → 排在其参数来源接口之后
+   - `description` 或 `inputSchema` 含 "需要先调用 X" 类表述时，将 X 前置
 3. 维护"已知数据池"：每个接口成功后把 `structuredContent` 存入池中，供下游参数引用。
+4. **有参接口的参数填充优先级**：先查已知数据池（上游接口 `structuredContent` 的同义字段），池中没有才考虑用户指定或默认值——**禁止在有数据池可用时直接用默认值测试有参接口**。
 
 ---
 
@@ -231,6 +238,7 @@ V001~V017 规则详情见 `references/VALIDATE_RULES.md`。
 
 **硬约束**（仅保留真正必要的）：
 
+- **执行顺序：先无参后有参**——无参接口先批量 execute 成功，其 `structuredContent` 入数据池后，有参接口再从池中取参数值 execute。禁止在有数据池可用时直接用默认值测试有参接口
 - 按 `apis[]` 顺序依赖关系准备好入参（下游接口的 args 若依赖上游 `structuredContent`，仍需先 execute 上游）
 - 每个带 `componentPath` 的接口最终都要 render 通过；完整通过的判据仍然是"execute 成功 + render 5 项核对通过"
 - 同一条 CLI 调用内，`render.mjs` 不能并发执行（CLI 后台 auto 是串行的）
@@ -256,12 +264,20 @@ node <skill-dir>/scripts/execute.mjs \
 **入参来源优先级**：
 
 1. 用户指定
-2. 上游 `structuredContent` 同名/同义字段
+2. **已知数据池**（上游接口 `structuredContent` 的同义字段）——有参接口必须先尝试从已成功执行的无参/上游接口的 `structuredContent` 中提取参数值，而非直接用默认值。例：`getOrderDetail` 需要 `orderId` → 先跑 `listOrders`（无参），从其 `structuredContent.orders[0].id` 取 `orderId`
 3. `inputSchema` 允许为空 → 省略 `--args`
-4. 类型默认值（string `""`、number `0`、array `[]`、object `{}`），日志标注"使用默认值"
+4. 类型默认值（string `""`、number `0`、array `[]`、object `{}`），日志标注"使用默认值"——**仅当数据池无对应字段且用户未指定时才用**
 
 **成功判据**：`status === "ok"` 且 `invokeResult.isError !== true` 且 `invokeResult.structuredContent` 为非空对象
 （后者是 render `--from-execute` 的前置条件）。
+
+**空结果排查（success 但 structuredContent 业务数据为空）**：`isError !== true` 但返回的 `structuredContent` 是空列表 / 空对象 / `total: 0` / 只有 `error` 字段时，**不能直接判通过**——这通常是请求参数错误、鉴权未生效、URL 拼错或响应拆包路径错的症状，而非业务上真的无数据。按以下顺序排查：
+
+1. **读 consoleMessages 的 `[ai-mode]` 日志**：确认请求实际发出的 URL / 参数 / header 是否正确（入口日志 → 请求前日志 → 请求后日志）
+2. **读主包源码定位真实请求**：找到该接口在主包中对应的页面/请求封装，确认真实 URL / method / 参数名 / 鉴权头 / 响应拆包路径
+3. **对比主包真实请求与 `apis/<name>.js` 实际发出的请求**：URL / method / 参数名 / 鉴权头是否一致？不一致 → 回 `apis/<name>.js` 或 `utils/request.js` 修正
+4. **鉴权排查**：主包请求封装需要的登录态/token，`apis/<name>.js` 入口是否补齐 `await ensureLogin()` 等 → 鉴权缺失会导致后端返回空而非报错
+5. 排查后修正 → 重跑 execute；仍空且确认请求与主包真实请求完全一致 → 可能是后端环境差异（测试账号无数据），在 trace 记录"已排查请求正确，疑似环境无数据"，允许带声明通过
 
 **execute 失败**：先检查产物 `_meta.diagnosis` 是否为不可修复类（若是则立即停止），否则按下方"阶段 4 失败分类"的 A/B/C/D 类处理。
 
@@ -331,19 +347,36 @@ node <skill-dir>/scripts/render.mjs \
 
 ## 阶段 4 失败分类与修复流程
 
-### 不可修复类：AppID 无小程序 AI 的开发模式权限
+### 不可修复类：环境 / 权限问题（非代码错误）
 
-**在进入修复流程之前，首先检查产物的 `_meta.diagnosis` 字段。若非 null，说明脚本已自动识别为环境问题，必须立即停止，禁止尝试修改代码。**
+**先检查 `_meta.diagnosis`**：非 null 即环境/权限问题，停止改代码，把 `hint` 原样转述给用户（勿笼统断言"无权限"）。此情形不得判通过、不产出 `DELIVERY.md`。
 
-特征（以下任一即命中）：
-- CLI stdout 含 `timeout waiting for auto websocket` 且 stderr 含 `Fetching AppID (wx...) detailed information ✖`
-- `invokeResult.isError === true` 且 `content[].text` 含 `agent compile mode is disabled`
-- 产物 `_meta.diagnosis.type === "appid_no_agent_permission"`
+按 `_meta.diagnosis.type` 区分处理：
 
-**处理**：⛔ 立即停止，向用户确认 AppID 权限状态：
-- 若用户确认当前 AppID 已有权限 → 直接重跑 execute / render
-- 若用户提供了新的 AppID → 根据用户的输入，修改 `project.config.json` 的 `appid` 字段后重跑 execute / render
-- 若用户无法确认 → 终止，建议用户前往微信公众平台查询或申请小程序 AI 的开发模式权限
+**`miniprogram_not_runnable`**（CLI 返回 `agent compile mode is disabled`）：表示小程序主包/分包未能正常编译运行——agent 能力要在小程序能正常跑起来时才自动就绪（`cli preview` 走到 upload 的"编译通过"只代表能打包，不代表运行时不白屏）。按 `hint` 逐条排查：
+1. 在开发者工具打开项目，确认能正常运行、无白屏，控制台无 `app.js` / `hack.js` 运行时报错（如 `Cannot set properties of undefined`、`appServiceSDKScriptError`）
+2. `regeneratorRuntime` 类报错通常源于 `project.config.json` 的 `es6` / `enhance` 编译设置与线上不一致，按能正常运行的配置对齐。
+3. `appid missing` / cloud init error 说明 `project.config.json` 缺 `appid` 或云开发未初始化，补齐后重试
+4. 确认 `app.json` 的 `agent.skills` / `subPackages` 配置正确，skill 目录含 `mcp.json`
+5. 首次打开可能尚未就绪，重开一次项目预热后再重试
+
+**`agent_env_unreachable`**：CLI stdout 含 `timeout waiting for auto websocket` 且 stderr 含 `Fetching AppID (wx...) detailed information ✖`。多种可能，**不可直接归因为无权限**，须把 `hint` 里的可能性逐条转述给用户，排查顺序：
+1. 开发者工具 / 基础库 agent 运行时异常或版本过旧 → 切线上基础库、用 `--debug` 重试
+2. 自动化通道未连上 / 端口不一致 → 确认服务端口已开启，必要时指定 `--auto-port`
+3. 工具未登录或账号不是该 AppID 成员 → 重新登录并确认账号权限
+4. 网络无法访问微信后台 → 检查代理 / VPN / 防火墙
+5. 以上均正常仍失败，才考虑 AppID 未开通 AI 开发模式权限
+
+**工具不稳定**（`_meta.diagnosis` 为 null 但 execute 超时/掉线/`Adapter wait timeout`/runtime 未 attach）：非代码 bug，禁止改代码判通过。处理：`cli open` 预热 → `--timeout 120000+` → 工具保持前台，必要时重启；仍失败则停止，不产出 `DELIVERY.md`。
+
+> **`diagnosis === null` ≠ 都是"工具不稳定"**——`execute.mjs`/`render.mjs` 仅在识别到确定性环境信号（`agent compile mode is disabled` / `Fetching AppID ✖` 等）时写 `diagnosis`；其余一律留 null。`diagnosis === null` 时按 `error` / `consoleMessages` 的**具体错误特征**判定归类：
+> - 超时 / 掉线 / `Adapter wait timeout` / runtime 未 attach → **工具不稳定**（本节）
+> - `missing required parameter` / `xxx is undefined` → **A 类**（下方）
+> - `no data` / `getStorageSync 返回 null` → **B 类**（下方）
+> - `network` / `500` / `unauthorized` / `wx.<xxx> is not a function` / JS 抛异常 → **C 类**（下方）
+> - `status: ok` + `isError: false` + 数据空 → **E 类**（下方）
+>
+> **禁止**把 A/B/C/E 类业务错误伪装成"工具不稳定"逃避修复。
 
 ---
 
@@ -408,9 +441,9 @@ node <skill-dir>/scripts/render.mjs \
 
 **优先假设不是代码写错，而是该 JSAPI 不在技能分包白名单内**。按以下顺序处理：
 
-1. 从报错提取 API 名，对照 wxa-skills-generate `SKILL.md` 的 C.1（接口侧）/ C.2（组件侧）白名单（**完整清单**见 `wxa-skills-generate/references/JSAPI_WHITELIST.md`）
+1. 从报错提取 API 名，对照 wxa-skills-generate `SKILL.md` 的 D.1（接口侧）/ D.2（组件侧）白名单（**完整清单**见 `wxa-skills-generate/references/JSAPI_WHITELIST.md`）
 2. 在白名单内 → 检查调用上下文是否错位（组件/接口侧专属）、`wx.request` 在组件侧是否漏声明 `permissions["scope.dynamic"]`
-3. 不在白名单 → 按 C.4 替换（如 `chooseImage` → `chooseMedia`）或改网络请求实现
+3. 不在白名单 → 按 D.7 替换（如 `chooseImage` → `chooseMedia`）或改网络请求实现
 4. 无等价替代 → 标 T9 终止。**禁止用 `if (wx.x)` / `try/catch` 吞异常当修好**
 
 #### C.2 子类：Skill 模块加载失败（分包未注册）
@@ -432,6 +465,20 @@ node <skill-dir>/scripts/render.mjs \
 5. 以上四项完整且正确 → 才按 C 类主流程去读 `apis/<name>.js` 的代码
 
 > **对照 wxa-skills-generate `SKILL.md` 阶段 6 与 `references/CODE_TEMPLATES.md` 第六节** 的配置片段做核对，不要乱写。
+
+### E 类：execute success 但业务数据为空
+
+特征：`status === "ok"` 且 `invokeResult.isError !== true`，但 `structuredContent` 是空列表 / 空对象 / `total: 0` / 只有 `error` 字段。**不能直接判通过**——这通常是请求参数错误、鉴权未生效、URL 拼错或响应拆包路径错的症状。
+
+按以下顺序排查（详见 `references/CLI_AGENT_REFERENCE.md` E 类排查流程）：
+
+1. 读 consoleMessages 的 `[ai-mode]` 日志，确认请求实际发出的 URL / 参数 / header
+2. 读主包源码定位该接口真实请求结构（URL / method / 参数名 / 鉴权头 / 响应拆包路径）
+3. 对比主包真实请求与 `apis/<name>.js` 实际发出的请求：URL / method / 参数名 / 鉴权头是否一致
+4. 鉴权排查：主包请求封装需要的登录态/token，`apis/<name>.js` 入口是否补齐 `await ensureLogin()` 等
+5. 排查后修正 → 重跑 execute；仍空且确认请求与主包真实请求完全一致 → 可能是后端环境差异，在 trace 记录"已排查请求正确，疑似环境无数据"，允许带声明通过
+
+上限 3 轮；排查后确认是代码问题 → 转 C 类修 `apis/<name>.js` / `utils/request.js`。
 
 ### D 类：render 核对不通过（含"被裁剪"/"样式还原度不达标"）
 
@@ -487,7 +534,7 @@ node <skill-dir>/scripts/render.mjs \
 1. 阶段 1 通过 + 每个声明的 `api` execute 成功 + 有 `componentPath` 的接口 5 项核对全部通过
 2. 阶段 1 连续 5 轮未通过 → 停止，输出失败报告
 3. 阶段 4 累计 5 轮仍有接口未通过 → 停止，输出失败报告
-4. 不可修复类环境错误（AppID 无小程序 AI 的开发模式权限、`_meta.diagnosis` 非 null）→ 立即停止，向用户确认权限或获取新 AppID
+4. 不可修复类（`_meta.diagnosis` 非 null）或工具不稳定经预热/加 timeout/重启仍失败 → 停止，转述 `hint`，不产出 `DELIVERY.md`
 5. T9 类问题 → 立即终止，告知用户
 
 ---
@@ -519,7 +566,7 @@ node <skill-dir>/scripts/render.mjs \
 - `skills/<skill>/apis/<name>.js`：<一行摘要>
 ```
 
-### 2. 交付文档 `./DELIVERY.md`（仅在全部接口通过时输出，强制）
+### 2. 交付文档 `./DELIVERY.md`（仅终止条件 1 成立时产出）
 
 终止条件 1 成立时必须产出：
 
@@ -533,7 +580,7 @@ node <skill-dir>/scripts/render.mjs \
 
 ### 3. 未通过时的修复建议（追加到 report.md 末尾）
 
-- **阶段 4 不可修复类** → 环境问题，**禁止修改代码**，向用户确认权限或获取新 AppID 后改 project.config.json 重跑
+- **阶段 4 不可修复类 / 工具不稳定** → 禁止改代码，按 `diagnosis.hint` 转述；提示用户工具恢复后重跑 execute，不产出 `DELIVERY.md`
 - 阶段 1 T1~T6 → 直接修对应文件，重跑 validate
 - 阶段 1 T7/T8 → 调整 `mcp.json` 的 `apis[]` / `utils/util.js` 的 storage 逻辑 / `index.js` 的 `registerAPI`，重跑 validate
 - 阶段 4 A/B 类 → 修 `apis/<name>.js` 入参拼装或 `utils/util.js` 的 `ensureStorageInit`，重跑 execute

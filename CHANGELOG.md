@@ -9,6 +9,24 @@
 
 ## wxa-skills-generate
 
+### [0.2.1] - 2026-07-17
+
+#### ✨ 新增
+
+- **大项目 subagent 分工协议**：新增 `references/SUBAGENT_PROTOCOL.md`，定义五类 subagent（鉴权提取 §2.1 / 鉴权核对 §2.2 / 逐能力接口提取 §2.3 / probe 计划 §2.4 / 校验 §2.6），用于页面 >~30 或多分包的大项目上下文隔离。含源码忠实铁律（interface-spec / plan）、回传纪律（只回结论摘要 + 产物路径，不回源码全文）、能力索引 `capability-index.json` 格式。SKILL.md 阶段 1/3/收尾同步引用
+- **鉴权迁移专题**：新增 `references/AUTH_MIGRATION.md`（~189 行），含 auth-spec 契约（§2 事实结构化 + §3 代码 verbatim 拷贝）、`valueSource.kind` 8 类闭合枚举表（literal / computedConstant / computed / appGlobal / storage / dynamic / userInput / upstreamRequest）及对应代码生成策略、`ensureXxx()` 复刻规范、§6 鉴权自检清单、§4 铁律 5（坐标参数必须 `ensureLocation()` + `wx.getLocation`/`getFuzzyLocation`，禁止硬编码/`|| 0`，须在 `app.json` 加 `requiredPrivateInfos`）
+- **产物确定性检查脚本**：新增 `scripts/check-artifacts.mjs`（~284 行，零依赖），按阶段 1/3/5/6 检查产物文件存在性 + JSON 可解析 + 目录结构正确，**不校验内容**（内容校验由 validate 负责）。退出码 1 时列出缺失项 + 该回哪个阶段补。SKILL.md 执行清单每个阶段末尾加 `node scripts/check-artifacts.mjs <project-path> --stage N` 勾选项，标注"禁止跳过此检查直接进入下一阶段"
+- **阶段契约加"产物校验"行**：阶段 1/2/3/4/6 契约表各加"产物校验"行，显式列出进入下一阶段前必须确认已落盘的文件
+
+#### ♻️ 变更
+
+- **硬性约束 C/D 节重构**：原 C 节拆为 C（代码一致性：C.1 禁止添加 / C.2 禁止丢弃 / 封装层强制复用）+ D（wx API 白名单：D.1 接口侧 / D.2 组件侧 / D.3 组件配置 / D.4 过期态 / D.5 半屏页 / D.6 handoff 接力页 / D.7 不可迁移 / D.8 button open-type / D.9 判定规则）。handoff 从原 C.3.3 升级为 D.6"进小程序的主要方式"
+- **阶段 3 细化**：3.3-3.6 从压缩要点展开为完整段落（鉴权依赖确认 / 签名可请求性 / 插件依赖 / 可行性三级校验 + 中置信询问模板）；3.7 probe 节强化"禁止猜测接口返回字段，必须用 automator 捕获真实响应"
+- **阶段 5 加 §5.8 字段忠实自检**：每写完一个 `apis/<name>.js` 就地拿 `structuredContent` 字段集与 `merged-result.json` 中该 api 的 probe 真实响应字段集比对，防止臆造字段；缺 probe 产物时重新执行 probe
+- **handoff D.6 增强**：明确"何时必须配 pagePath"（执行完停下等用户确认的接口）、四项适配清单（mcp.json pagePath / 返回值 handoff 对象+函数双形态 / app.js wx.onAgentHandoff / 接力页 onLoad 消费）、禁用 `wx.openAgent` / `wx.navigateBackAgent`
+- **probe 脚本重构**：`probe-lib.mjs` 精简（删除冗余探测路径，保留 automator 连接 + 真实请求捕获核心）
+- **RUNTIME_PROBE.md 扩展**：从 ~80 行扩展至 ~150 行，含完整 SOP（cli open → cli auto → probe.mjs --mode connect）、≥3 轮重试后才可标 UNVERIFIED、禁止手写伪造探测结果
+
 ### [0.2.0] - 2026-07-02
 
 #### ♻️ 变更
@@ -78,6 +96,22 @@
 ---
 
 ## wxa-skills-validate
+
+### [0.2.1] - 2026-07-17
+
+#### ✨ 新增
+
+- **新增 V018 校验 - handoff query 参数名一致性**：校验 `apis/<name>.js` 中 `handoff.query` 的 key 是否在接力页 `<pagePath>.js` 的 `onLoad` 中被引用（`.key` 或 `['key']` 形式）。不匹配时报 error，提示读接力页 onLoad 确认实际参数名后修正。同步更新 `references/VALIDATE_RULES.md` 与 `SKILL.md`（规则范围 V001~V018、错误类型表新增 T-handoff-query）
+- **E 类失败（execute success 但业务数据为空）**：新增第 5 种失败类型——`status === "ok"` 且 `isError !== true` 但 `structuredContent` 为空列表/空对象/`total: 0`/只有 `error` 字段时，**不能直接判通过**。5 步排查流程：① 读 `[ai-mode]` 日志确认实际请求 ② 读主包源码定位真实请求 ③ 对比主包与 `apis/<name>.js` 的 URL/method/参数名/鉴权头 ④ 鉴权排查（`ensureLogin` 等是否补齐） ⑤ 修正后重跑；确认请求与主包完全一致时允许带声明通过（疑似环境无数据）。同步更新 `references/CLI_AGENT_REFERENCE.md` E 类排查流程
+- **有参接口"先无参后有参"执行策略**：阶段 3 构建执行计划时按入参依赖做拓扑排序——无参接口（`inputSchema.properties` 为空或无 `required`）最先批量 execute，其 `structuredContent` 入数据池后，有参接口再从池中取参数值 execute。禁止在有数据池可用时直接用默认值测试有参接口
+
+#### ♻️ 变更
+
+- **不可修复类细化**：原"AppID 无小程序 AI 的开发模式权限"扩展为"环境 / 权限问题（非代码错误）"，按 `_meta.diagnosis.type` 区分两种——`miniprogram_not_runnable`（`agent compile mode is disabled`，主包/分包运行时白屏，按 hint 逐条排查 app.js 报错/regeneratorRuntime/appid/cloud init）与 `agent_env_unreachable`（websocket 超时 + AppID 获取失败，多种可能不可直接归因为无权限）。须把 hint 原样转述给用户，不得笼统断言"无权限"
+- **验收目标加硬门闩**：明确"静态/编译通过 ≠ 验收通过"——须真机 execute + render 5 项核对；execute 未跑成时不得判通过、不产出 `DELIVERY.md`
+- **空结果排查独立成段**：从 A 类失败中拆出"success 但空数据"场景，避免被误判为 A 类弱失败直接放行
+- **`diagnosis === null` 分类辨析**：diagnosis 为 null 只是"脚本无法把握"，不是"一定是工具问题"——按 error/consoleMessages 特征具体分类（超时掉线→工具不稳定；参数错→A 类；storage 空→B 类；网络/JS 异常→C 类；ok+空数据→E 类），禁止把 A/B/C/E 类业务错误伪装成"工具不稳定"逃避修复
+- **删除对生成产物的依赖**：空结果排查和 E 类排查中删除对 `.ai-mode-skills/` 产物（interface-spec / merged-result / auth-spec）的引用，统一为"读主包源码"——validate 可用于校验非 generate 生成的 skills/
 
 ### [0.2.0] - 2026-07-02
 

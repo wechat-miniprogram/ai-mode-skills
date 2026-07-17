@@ -1,4 +1,4 @@
-# validate.mjs 内置规则详解（V001~V017）
+# validate.mjs 内置规则详解（V001~V018）
 
 > 本文件列出 `scripts/validate.mjs` 内置的所有校验规则。当 `validate-report.json` 中出现未知的 `id` 时按本文定位。
 >
@@ -26,6 +26,7 @@
   - [V014 SKILL.md 必须存在且文件名严格大写](#v014-skillmd-必须存在且文件名严格大写)
   - [V016 app.json 的 agent.skills[].description 必须存在且非空](#v016-appjson-的-agentskillsdescription-必须存在且非空)
   - [V017 handoff 接力页 pagePath 校验](#v017-handoff-接力页-pagepath-校验)
+  - [V018 handoff query 参数名与接力页 onLoad 一致性](#v018-handoff-query-参数名与接力页-onload-一致性)
 - [规则与错误类型映射](#规则与错误类型映射)
 
 ---
@@ -242,7 +243,39 @@
 - `pagePath` 带 query（如 `/pages/drug/detail?id=1`）→ 改为 `"/pages/drug/detail"`，把 `id=1` 放到返回值 `handoff.query`
 - `pagePath` 不以 `/` 开头 → 补前导 `/`
 - 页面不存在 → 改为 `app.json` 中真实页面
-- 实现未返回 `handoff` → 在返回值顶层增加 `handoff: { query, payload? }`（详见 wxa-skills-generate `SKILL.md` C.3.3）
+- 实现未返回 `handoff` → 在返回值顶层增加 `handoff: { query, payload? }`（详见 wxa-skills-generate `SKILL.md` D.6）
+
+---
+
+### V018 handoff query 参数名与接力页 onLoad 一致性
+
+- **阶段**：`registration`，**级别**：`error`
+
+对声明了 `_meta.ui.pagePath` 且返回值 `handoff.query` 含**非空 key** 的接口，读取接力页 JS 文件，检查 `handoff.query` 的每个 key 是否在其中作为属性被引用。
+
+**背景**：handoff 的 `query` 会被框架序列化为 URL query string 传给接力页 `onLoad(options)`。如果 `handoff.query` 的 key 与页面实际读取的参数名不一致（如 handoff 传 `matchId` 但页面读 `uni_id`），用户点卡片进接力页时 handoff 意图丢失——页面拿不到预期参数，展示错误内容或空白。
+
+**检查项**：
+
+1. 接口实现文件中提取 `handoff.query` 的 key 集合（空对象 `{}` → 跳过）
+2. 读取 `<projectRoot>/<pagePath>.js`（接力页 JS）
+3. 在接力页 JS 中搜索 `.<key>` 或 `['<key>']` 模式（不依赖 onLoad 参数名：key 不作为属性出现即说明页面未消费）
+4. 若**全部** key 均未被引用 → error（参数名不匹配或页面忽略 handoff query）
+5. 若**至少一个** key 被引用 → pass（页面可能只消费部分参数）
+
+**跳过条件**（不报 error，输出 pass）：
+
+- 接口无 `pagePath`（V017 管）
+- `handoff.query` 为空对象 `{}` 或无 key（无参接力）
+- 接力页 JS 文件不存在（V017 管页面存在性）
+- `handoff.query` 不是对象字面量（如变量引用，无法静态提取 key）
+
+**典型 fail**：
+
+- `searchPlayers` 返回 `handoff: { query: { matchId: params.matchId } }`，接力页 `uni_match.js` 的 `onLoad: function(t)` 读取 `t.uni_id`——`t.matchId` 未出现在文件中 → error
+- `viewMatchScorecard` 返回 `handoff: { query: { matchId: params.matchId } }`，接力页 `ScoreCard.js` 的 `onLoad: function(a)` 完全不读 query——`a.matchId` 未出现在文件中 → error
+
+**典型修复**：读接力页 `onLoad` 确认其读取的参数名，将 `apis/<name>.js` 中 `handoff.query` 的 key 改为页面实际读取的名称。例如 `handoff: { query: { matchId: params.matchId } }` → `handoff: { query: { uni_id: params.matchId } }`（当页面读 `t.uni_id` 时）。
 
 ---
 
@@ -262,6 +295,7 @@
 | V014 | T1 命名/结构 | `SKILL.md` 文件名严格大写 |
 | V016 | T-skill-description skill 描述缺失 | 在 `app.json` 的 `agent.skills[]` 中为该条目补 `description` 字段 |
 | V017 | T-handoff 接力页配置错误 | 修正 `_meta.ui.pagePath`（以 `/` 开头、不含 query、页面真实存在）；补返回值 `handoff` |
+| V018 | T-handoff-query handoff query 参数名不匹配 | 读接力页 onLoad 确认参数名，将 handoff.query 的 key 改为页面实际读取的名称 |
 
 ---
 

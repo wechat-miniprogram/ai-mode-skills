@@ -70,13 +70,13 @@ wx.ready(function () {
 })
 ```
 
-> 上行协议（`content` 形态、`name` 必须在 `mcp.json.apis[].name` 已声明、`arguments` 与 `inputSchema` 对齐）与原子组件 tap handler 完全一致——见 `SKILL.md §5.0.1` + `COMPONENT_TEMPLATES.md` 的"上行消息"节。
+> 上行协议（`content` 形态、`name` 必须在 `mcp.json.apis[].name` 已声明、`arguments` 与 `inputSchema` 对齐）与原子组件 tap handler 完全一致——见 `SKILL.md` 阶段 5.3 + `COMPONENT_TEMPLATES.md` 的"上行消息"节。
 
 ---
 
 ## 3. 半屏页面的接口/组件禁用清单
 
-半屏页面执行环境与小程序页面一致，**但禁用以下任何"会让用户跳出半屏"的能力**。命中即视为不可迁移，按 SKILL.md C.6 处理（删除调用 / 用网络请求替代 / 触发阻断）。
+半屏页面执行环境与小程序页面一致，**但禁用以下任何"会让用户跳出半屏"的能力**。命中即视为不可迁移，按 SKILL.md D.8 处理（删除调用 / 用网络请求替代 / 触发阻断）。
 
 ### 3.1 跳出类（跳公众号/视频号/其他小程序/表情/问一问/地图 App）
 

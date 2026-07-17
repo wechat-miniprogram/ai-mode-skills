@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // scripts/probe.mjs
 // 用法：node probe.mjs --project <path> --plan <plan.json> [--output <path>] [--auto-port 9420] [--cli-path <path>] [--mode launch|connect] [--ws-endpoint <url>]
+// 省略 --output 时自动写入 <project>/.ai-mode-skills/probe/<runId>.json
 
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -57,12 +58,7 @@ async function main() {
   }
 
   const sum = summarize(payload);
-  if (opts.output) {
-    console.log(`[probe] 结果已写入 ${opts.output}`);
-  } else {
-    console.log(JSON.stringify(payload, null, 2));
-  }
-  console.log(`[probe] 汇总：成功 ${sum.ok}/${sum.total}，失败 ${sum.failed}`);
+  console.log(`[probe] 汇总：成功 ${sum.ok}/${sum.total}，失败 ${sum.failed}（runId=${payload.runId}）`);
 
   if (sum.failures.length) {
     for (const f of sum.failures) {

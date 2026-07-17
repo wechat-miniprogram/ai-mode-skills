@@ -50,7 +50,7 @@ wx.modelContext.getContext(this).sendFollowUpMessage({
 3. **`text` 是用户视角的简短中文**（≤ 12 字，如"选择拿铁"），从 dataset 可读字段拼出，不是 args 序列化。
 4. **每次上行 `api/call` 前打一行 console.info**：`[ai-mode] {componentName} send api/call name=<name> args=<JSON>`。
 5. **组件不直接调原子接口 / 业务 API**；不上行不存在的 `name`。
-6. **主动调用 `sendFollowUpMessage` / `getDimensions` 必须现取 ctx**——在 `methods` / tap handler / 异步回调里，当场 `wx.modelContext.getContext(this).sendFollowUpMessage(...)`（或 `getViewContext(this)` 对应方法）。**禁止**通过 `this._modelCtx` / `this._viewCtx` 之类的实例缓存引用去调方法（小程序 AI 宿主可能复用组件实例承接多轮结果，旧 ctx 会被标记为过期）。`created` 里用临时局部变量绑 `on(...)` 之后是否把 `modelCtx` / `viewCtx` 再存一份到 `this` 不影响——因为 `on(...)` 的回调已由 SDK 内部持有。同理，按需调用的卡片过期 API（`wx.modelContext.expireAllCards()` / `getViewContext(this).expirePreviousCards()`，详见 `SKILL.md` C.3.1）也要在使用点现取 ctx，不要缓存。
+6. **主动调用 `sendFollowUpMessage` / `getDimensions` 必须现取 ctx**——在 `methods` / tap handler / 异步回调里，当场 `wx.modelContext.getContext(this).sendFollowUpMessage(...)`（或 `getViewContext(this)` 对应方法）。**禁止**通过 `this._modelCtx` / `this._viewCtx` 之类的实例缓存引用去调方法（小程序 AI 宿主可能复用组件实例承接多轮结果，旧 ctx 会被标记为过期）。`created` 里用临时局部变量绑 `on(...)` 之后是否把 `modelCtx` / `viewCtx` 再存一份到 `this` 不影响——因为 `on(...)` 的回调已由 SDK 内部持有。同理，按需调用的卡片过期 API（`wx.modelContext.expireAllCards()` / `getViewContext(this).expirePreviousCards()`，详见 `SKILL.md` D.4）也要在使用点现取 ctx，不要缓存。
 
 ### api/call 模板（按交互类型选 name + arguments）
 
@@ -60,7 +60,7 @@ wx.modelContext.getContext(this).sendFollowUpMessage({
 |---|---|---|
 | 列表项 → 查看详情 | `searchItemDetail` / `searchOrderDetail` 这类详情接口 | 被点对象的 id（如 `{ itemId: 1528954 }` / `{ orderId: 12345 }`） |
 | 列表项 → 继续下一步业务 | 依赖图下游接口（如选商家后 → `searchSchedule`） | 已选对象的 id + 当前组件上下文必需入参（如 `{ storeId, itemId, date, time }`） |
-| "换一换" / "换一批" | 同当前展示能力的检索接口（如 `searchItems`） | 带上一轮 query + `{     refresh: true }`（仅当接口 inputSchema 有该字段）。**注意**："查看更多/全部"不走上行 `api/call`，走半屏 `viewCtx.openDetailPage()`（见 §7.3） |
+| "换一换" / "换一批" | 同当前展示能力的检索接口（如 `searchItems`） | 带上一轮 query + `{     refresh: true }`（仅当接口 inputSchema 有该字段）。**注意**："查看更多/全部"不走上行 `api/call`，走半屏 `viewCtx.openDetailPage()`（见 `ATOMIC_COMPONENT_DESIGN.md` §7.3） |
 | 详情页主 CTA（购票 / 加购 / 预约 / 支付）| 触发业务动作的下一跳接口（如 `bookingItem` / `createOrder`）| 当前详情对象的关键标识（seqNo / orderId / sessionId / quantity / gradeId 等） |
 | 多选/枚举型选择（座位、时段、规格）| 与"选择结果"挂钩的下一跳接口（如选完座 → `order`）| 所选实体集合（如 `{ seqNo, seats: [{ row, column }, ...] }`） |
 | 状态结果页引导继续 | 紧邻的状态收束接口（如支付完成后看订单 → `listMyOrders`，若存在）| 过渡所需的最小入参，允许空对象 `{}` |
@@ -114,7 +114,7 @@ methods: {
 
 ### 卡片过期（按需，非强制）
 
-> 默认不生成。仅当业务上确实有"该卡片应作废、不应再被点"语义时使用。详见 `SKILL.md` C.3.1。前提是 `mcp.json.components[]` 对应记录已声明 `expirable: true` + 业务化 `expiredText`，否则调用为空操作。
+> 默认不生成。仅当业务上确实有"该卡片应作废、不应再被点"语义时使用。详见 `SKILL.md` D.4。前提是 `mcp.json.components[]` 对应记录已声明 `expirable: true` + 业务化 `expiredText`，否则调用为空操作。
 
 ```js
 // 形态 A：写操作型动作完成后，让所有可过期卡片（含自身）一并失效——接口或组件均可

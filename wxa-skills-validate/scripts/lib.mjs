@@ -5,7 +5,11 @@ import { randomUUID } from "node:crypto";
 import { constants as FS } from "node:fs";
 import { tmpdir } from "node:os";
 
-export const DEFAULT_CLI_PATH = "/Applications/wechatwebdevtools.app/Contents/MacOS/cli";
+const isWin = process.platform === "win32";
+
+export const DEFAULT_CLI_PATH = isWin
+  ? "C:/Program Files (x86)/Tencent/微信web开发者工具/cli.bat"
+  : "/Applications/wechatwebdevtools.app/Contents/MacOS/cli";
 export const DEFAULT_AUTO_PORT = 9420;
 export const DEFAULT_TIMEOUT_MS = 45000;
 
@@ -229,25 +233,43 @@ export function normalizeCliResult({ code, stdout, stderr, parsed, timedOut }) {
 }
 
 function _diagnoseAppIdPermission(stdout, stderr, parsed) {
+  const content = parsed?.invokeResult?.content;
+  if (Array.isArray(content) && content.some(c => c.type === "text" && /agent compile mode is disabled/i.test(c.text || ""))) {
+    const appid = parsed?.params?.appId || parsed?.params?.hostAppId || null;
+    return { type: "miniprogram_not_runnable", appid, hint: _compileModeHint(appid) };
+  }
   if (/timeout waiting for auto websocket/i.test(stdout)
     && /Fetching AppID/i.test(stderr)
     && /detailed information/i.test(stderr)
     && /✖/.test(stderr)) {
     const m = stderr.match(/Fetching AppID\s*\(([^)]+)\)/);
     const appid = m ? m[1] : null;
-    return { type: "appid_no_agent_permission", appid, hint: _appidHint(appid) };
-  }
-  const content = parsed?.invokeResult?.content;
-  if (Array.isArray(content) && content.some(c => c.type === "text" && /agent compile mode is disabled/i.test(c.text || ""))) {
-    const appid = parsed?.params?.appId || parsed?.params?.hostAppId || null;
-    return { type: "appid_no_agent_permission", appid, hint: _appidHint(appid) };
+    return { type: "agent_env_unreachable", appid, hint: _envHint(appid) };
   }
   return null;
 }
 
-function _appidHint(appid) {
+function _compileModeHint(appid) {
+  return [
+    `CLI 返回 agent compile mode is disabled，表示小程序主包/分包未能正常编译运行——agent 能力要在小程序能正常跑起来时才会自动就绪（cli preview 能打包不代表运行时不白屏）。请按此排查：`,
+    `1. 在开发者工具打开项目，确认能正常运行、无白屏，控制台无 app.js/hack.js 运行时报错（如 "Cannot set properties of undefined"、appServiceSDKScriptError）。`,
+    `2. regeneratorRuntime 类报错通常源于 project.config.json 的 es6/enhance 编译设置与线上不一致，按能正常运行的配置对齐。`,
+    `3. appid missing / cloud init error 说明 project.config.json 缺 appid 或云开发未初始化，补齐后重试。`,
+    `4. 确认 app.json 的 agent.skills、subPackages 配置正确，skill 目录含 mcp.json。`,
+    `5. 首次打开可能尚未就绪，重开一次项目预热后再重试。`,
+  ].join("\n");
+}
+
+function _envHint(appid) {
   const id = appid ? ` (${appid})` : "";
-  return `当前 AppID${id} 可能没有使用小程序 AI 的开发模式权限。若已有权限可直接重试；若需更换 AppID，修改 project.config.json 的 appid 后重跑即可，无需手动重启开发者工具。`;
+  return [
+    `自动化通道连接超时、AppID${id} 详情拉取失败。该现象有多种可能，不能直接断定为无权限，请按可能性逐一排查：`,
+    `1. 开发者工具 / 基础库的 agent 运行时异常或版本过旧 —— 先把基础库切到线上版本、用 --debug 重试。`,
+    `2. 自动化通道未连上或端口不一致 —— 确认「设置→安全设置→服务端口」已开启，必要时显式指定 --auto-port。`,
+    `3. 开发者工具未登录，或登录账号不是该 AppID 的项目成员 —— 重新登录并确认账号有该 AppID 权限。`,
+    `4. 网络无法访问微信后台，AppID 详情接口失败 —— 检查代理 / VPN / 防火墙。`,
+    `5. 以上都正常后仍失败，考虑 AppID 确实未开通 AI 开发模式权限。`,
+  ].join("\n");
 }
 
 export function genId(prefix = "tc") {

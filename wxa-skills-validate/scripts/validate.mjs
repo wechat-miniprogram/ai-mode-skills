@@ -77,6 +77,7 @@ const BUILTIN_RULES = {
     { id: "V014", name: "SKILL.md 必须存在且文件名严格大写", stage: "registration", level: "error" },
     { id: "V016", name: "app.json 的 agent.skills[].description 必须存在且非空", stage: "registration", level: "error" },
     { id: "V017", name: "handoff 接力页 pagePath 校验", stage: "registration", level: "error" },
+    { id: "V018", name: "handoff query 参数名与接力页 onLoad 一致性", stage: "registration", level: "error" },
   ],
 };
 
@@ -433,6 +434,7 @@ const CROSS_CHECKERS = {
   V014: checkV014_SkillMdCase,
   V016: checkV016_SkillDescription,
   V017: checkV017_HandoffPagePath,
+  V018: checkV018_HandoffQueryConsistency,
 };
 
 async function checkCrossFileRule(rule, skillsPath, ctx = {}) {
@@ -782,7 +784,7 @@ async function checkV017_HandoffPagePath(rule, skillsPath, ctx = {}) {
       if (ppStr.includes("?")) {
         out.push(fail(rule, `接口 '${name}' pagePath='${ppStr}' 不应带 query`, {
           file: mcpRel,
-          fix: `去掉 '?' 及其后内容；query 由原子接口返回值的 handoff.query 传递（详见 wxa-skills-generate SKILL.md C.3.3）`,
+          fix: `去掉 '?' 及其后内容；query 由原子接口返回值的 handoff.query 传递（详见 wxa-skills-generate SKILL.md D.6）`,
         }));
         continue;
       }
@@ -804,7 +806,7 @@ async function checkV017_HandoffPagePath(rule, skillsPath, ctx = {}) {
             out.push(fail(rule, `接口 '${name}' 声明了 pagePath 但实现未返回 handoff（用户点卡片进接力页时缺少 query/payload 传递）`, {
               level: "warning",
               file: relative(skillsPath, found.path),
-              fix: `在返回值顶层（与 content/structuredContent 同级）增加 handoff: { query: '...', payload? }（详见 wxa-skills-generate SKILL.md C.3.3）`,
+              fix: `在返回值顶层（与 content/structuredContent 同级）增加 handoff: { query: '...', payload? }（详见 wxa-skills-generate SKILL.md D.6）`,
             }));
           }
         } catch {}
@@ -813,6 +815,75 @@ async function checkV017_HandoffPagePath(rule, skillsPath, ctx = {}) {
     }
   }
   return out;
+}
+
+async function checkV018_HandoffQueryConsistency(rule, skillsPath, ctx = {}) {
+  const out = [];
+  if (!ctx.projectRoot) return out;
+
+  for (const skillDir of await findSkillDirs(skillsPath)) {
+    const rel = relative(skillsPath, skillDir);
+    let mcp;
+    try { mcp = JSON.parse(await readFile(join(skillDir, "mcp.json"), "utf-8")); } catch (e) { console.warn(`[V018] 跳过 ${rel}: mcp.json 读取/解析失败: ${e.message}`); continue; }
+
+    for (const item of parseMcpApis(mcp)) {
+      const name = typeof item?.name === "string" ? item.name : "(unknown)";
+      const pp = item?._meta?.ui?.pagePath;
+      if (!pp) continue; 
+      const found = await resolveApiFile(skillDir, name);
+      if (!found) continue;
+      let apiBody;
+      try { apiBody = await readFile(found.path, "utf-8"); } catch (e) { console.warn(`[V018] 跳过 ${rel} 接口 '${name}': 实现文件读取失败: ${e.message}`); continue; }
+      const queryKeys = extractHandoffQueryKeys(apiBody);
+      if (queryKeys.length === 0) continue;
+
+      const ppStr = typeof pp === "string" ? pp.trim() : "";
+      if (!ppStr.startsWith("/")) continue;
+      const pageJsPath = join(ctx.projectRoot, ppStr.replace(/^\/+/, "") + ".js");
+      if (!await exists(pageJsPath)) {
+        out.push(pass(rule, `${rule.name}: ${rel} 接口 '${name}' 接力页 JS 不存在（${ppStr}.js），跳过`));
+        continue;
+      }
+      let pageJs;
+      try { pageJs = await readFile(pageJsPath, "utf-8"); } catch (e) { console.warn(`[V018] 跳过 ${rel} 接口 '${name}': 接力页 JS 读取失败: ${e.message}`); continue; }
+      const missing = queryKeys.filter(key => {
+        const dotRe = new RegExp(`\\.${key}\\b`);
+        const bracketRe = new RegExp(`\\[\\s*['"]${key}['"]\\s*\\]`);
+        return !dotRe.test(pageJs) && !bracketRe.test(pageJs);
+      });
+
+      if (missing.length === 0) {
+        out.push(pass(rule, `${rule.name}: ${rel} 接口 '${name}' handoff.query [${queryKeys.join(", ")}] 在接力页中均被引用`));
+      } else {
+        out.push(fail(rule, `接口 '${name}' handoff.query 传了 [${queryKeys.join(", ")}]，但接力页 '${ppStr}' 中未引用 [${missing.join(", ")}]——参数名不匹配或页面忽略了该参数，用户点卡片进接力页时 handoff 意图丢失`, {
+          file: relative(skillsPath, found.path),
+          fix: `读接力页 ${ppStr}.js 的 onLoad 确认其读取的参数名，将 apis/${name}.js 中 handoff.query 的 key 改为页面实际读取的名称；或确认页面无需该参数时改为 handoff: { query: {} }`,
+        }));
+      }
+    }
+  }
+  return out;
+}
+
+function extractHandoffQueryKeys(js) {
+  const keys = [];
+  const idx = js.search(/\bhandoff\b/);
+  if (idx === -1) return keys;
+  const braceIdx = js.indexOf("{", idx);
+  if (braceIdx === -1) return keys;
+  const closeIdx = findMatchingBracket(js, braceIdx);
+  if (closeIdx === -1) return keys;
+  const handoffBody = js.slice(braceIdx + 1, closeIdx);
+  const qIdx = handoffBody.search(/\bquery\b\s*:/);
+  if (qIdx === -1) return keys;
+  const qBraceIdx = handoffBody.indexOf("{", qIdx);
+  if (qBraceIdx === -1) return keys;
+  const qCloseIdx = findMatchingBracket(handoffBody, qBraceIdx);
+  if (qCloseIdx === -1) return keys;
+  const queryBody = handoffBody.slice(qBraceIdx + 1, qCloseIdx);
+  const keySet = new Set();
+  collectTopLevelKeys(queryBody, keySet);
+  return [...keySet];
 }
 
 function collectAppPages(appJson) {
